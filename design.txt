@@ -1,0 +1,10 @@
+Existing flow:
+    EventBridge -> ECS Task (ingestion pipeline) -> DB
+
+Extend to :
+    EventBridge -> ECS Task (ingestion pipeline) -> ECS Task (ML Scoring) -> DB
+
+    OR (cleaner option but might add complexity?)
+
+    EventBridge -> Step Function(ingestion pipeline and ML Scoring) -> DB
+
