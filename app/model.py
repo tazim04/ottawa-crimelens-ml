@@ -43,7 +43,8 @@ def infer_feature_columns(
     feature_columns = [
         column
         for column in feature_frame.columns
-        if column not in exclude_columns and pd.api.types.is_numeric_dtype(feature_frame[column])
+        if column not in exclude_columns
+        and pd.api.types.is_numeric_dtype(feature_frame[column])
     ]
     if not feature_columns:
         raise ValueError("feature_frame does not contain any numeric feature columns")
@@ -62,7 +63,9 @@ def prepare_model_matrix(
     """
     resolved_feature_columns = feature_columns or infer_feature_columns(feature_frame)
     missing_columns = [
-        column for column in resolved_feature_columns if column not in feature_frame.columns
+        column
+        for column in resolved_feature_columns
+        if column not in feature_frame.columns
     ]
     if missing_columns:
         raise ValueError(
@@ -153,7 +156,11 @@ def score_feature_frame(
     output_columns = [
         column for column in ("grid_id", "date") if column in feature_frame.columns
     ]
-    scored_frame = feature_frame[output_columns].copy() if output_columns else pd.DataFrame(index=feature_frame.index)
+    scored_frame = (
+        feature_frame[output_columns].copy()
+        if output_columns
+        else pd.DataFrame(index=feature_frame.index)
+    )
     scored_frame["anomaly_score"] = anomaly_scores
     scored_frame["model_version"] = artifact.model_version
     return scored_frame

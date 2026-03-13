@@ -25,7 +25,7 @@ def build_date_range(start_date: date, end_date: date) -> pd.DatetimeIndex:
 def category_to_feature_name(category: str) -> str:
     """
     Normalize an offence category label into a stable feature column name.
-    
+
     eg: "Theft $5000 and Under" -> "category_theft_5000_and_under"
     """
     # Collapse punctuation and spacing differences into predictable column ids
