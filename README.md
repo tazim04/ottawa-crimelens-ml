@@ -41,3 +41,12 @@ It should:
 
 This folder contains all reusable, modular logic, acting as the **ML domain layer**.
 
+## Formatting and Linting
+
+```Bash
+ruff format
+```
+
+```Bash
+ruff check --fix
+```
