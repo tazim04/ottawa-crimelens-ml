@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Literal
 
 import pandas as pd
+from sqlalchemy import inspect, text
 
 from app.db import engine
 from app.feature_builder import build_daily_features
+from app.features.constants import DEFAULT_LOOKBACK_DAYS
 from app.model import load_model_artifact, score_feature_frame
 
-from app.triage import assign_triage_labels
+from app.triage import add_triage_explanations, assign_triage_labels
 
 from app.triage import (
     DEFAULT_TRIAGE_HIGH_PERCENTILE,
@@ -140,6 +142,9 @@ def persist_scored_results(
         if_exists,
     )
 
+    if if_exists == "append":
+        ensure_result_table_columns(scored_frame, table_name=table_name)
+
     scored_frame.to_sql(
         name=table_name,
         con=engine,
@@ -148,6 +153,59 @@ def persist_scored_results(
         method="multi",
     )
     return len(scored_frame)
+
+
+def ensure_result_table_columns(
+    scored_frame: pd.DataFrame,
+    *,
+    table_name: str,
+) -> None:
+    """
+    Add missing nullable columns to an existing results table before appending.
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table(table_name):
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns(table_name=table_name)
+    }
+    missing_columns = [
+        column for column in scored_frame.columns if column not in existing_columns
+    ]
+    if not missing_columns:
+        return
+
+    logger.info(
+        "Adding missing columns to '%s' before append: %s",
+        table_name,
+        ", ".join(missing_columns),
+    )
+    with engine.begin() as connection:
+        for column in missing_columns:
+            connection.execute(
+                text(
+                    f'ALTER TABLE "{table_name}" ADD COLUMN "{column}" '
+                    f"{sql_type_for_series(scored_frame[column])}"
+                )
+            )
+
+
+def sql_type_for_series(series: pd.Series) -> str:
+    """Map a pandas series to a simple Postgres column type for result persistence."""
+    if pd.api.types.is_bool_dtype(series):
+        return "BOOLEAN"
+    if pd.api.types.is_integer_dtype(series):
+        return "BIGINT"
+    if pd.api.types.is_float_dtype(series):
+        return "DOUBLE PRECISION"
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return "TIMESTAMP"
+    if pd.api.types.is_object_dtype(series):
+        non_null = series.dropna()
+        if not non_null.empty and isinstance(non_null.iloc[0], date):
+            return "DATE"
+    return "TEXT"
 
 
 def score_daily_features(
@@ -181,8 +239,15 @@ def score_daily_features(
 
     artifact = load_model_artifact(resolve_model_artifact_path(model_artifact_path))
     scored_frame = score_feature_frame(feature_frame, artifact)
-    return assign_triage_labels(
+    triaged_frame = assign_triage_labels(
         scored_frame,
         high_percentile=high_percentile,
         medium_percentile=medium_percentile,
+    )
+    return add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=lookback_days
+        if lookback_days is not None
+        else DEFAULT_LOOKBACK_DAYS,
     )

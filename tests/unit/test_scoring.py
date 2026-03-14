@@ -31,8 +31,30 @@ def test_score_daily_features_uses_builder_and_model_layers(
     """Test that daily scoring orchestrates feature building, model loading, and triage."""
     feature_frame = pd.DataFrame(
         [
-            {"grid_id": "g1", "date": date(2026, 3, 13), "total_crimes": 2.0},
-            {"grid_id": "g2", "date": date(2026, 3, 13), "total_crimes": 7.0},
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 2.0,
+                "rolling_mean_30d": 2.0,
+                "count_delta_from_mean": 0.0,
+                "count_zscore_30d": 0.0,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+                "category_assaults_share": 0.5,
+                "evening_crimes_share": 0.5,
+            },
+            {
+                "grid_id": "g2",
+                "date": date(2026, 3, 13),
+                "total_crimes": 7.0,
+                "rolling_mean_30d": 3.0,
+                "count_delta_from_mean": 4.0,
+                "count_zscore_30d": 2.5,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+                "category_assaults_share": 0.7,
+                "evening_crimes_share": 0.8,
+            },
         ]
     )
     scored_frame = pd.DataFrame(
@@ -78,6 +100,8 @@ def test_score_daily_features_uses_builder_and_model_layers(
     # The lower of two rows lands on the medium percentile threshold here.
     assert result["triage_label"].tolist() == ["medium", "high"]
     assert result["model_version"].tolist() == ["v1", "v1"]
+    assert "triage_explanation" in result.columns
+    assert "Observed 7 crimes versus a recent average of 3.0" in result.loc[1, "triage_explanation"]
 
 
 def test_run_scoring_pipeline_persists_results_when_enabled(
@@ -125,3 +149,11 @@ def test_run_scoring_pipeline_persists_results_when_enabled(
     assert result.equals(scored_frame)
     assert persisted["table_name"] == "daily_scores"
     assert persisted["if_exists"] == "replace"
+
+
+def test_sql_type_for_series_maps_common_result_types() -> None:
+    """Test that persistence type mapping covers the score output schema."""
+    assert scoring.sql_type_for_series(pd.Series([0.1, 0.2])) == "DOUBLE PRECISION"
+    assert scoring.sql_type_for_series(pd.Series([1, 2])) == "BIGINT"
+    assert scoring.sql_type_for_series(pd.Series([date(2026, 3, 13)])) == "DATE"
+    assert scoring.sql_type_for_series(pd.Series(["high triage"])) == "TEXT"
