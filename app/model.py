@@ -9,8 +9,15 @@ import joblib
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
+
+##### Core ML Layer ######
+
+
 DEFAULT_MODEL_VERSION = "isolation_forest_v1"
-DEFAULT_EXCLUDE_COLUMNS = ("grid_id", "date")
+DEFAULT_EXCLUDE_COLUMNS = (
+    "grid_id",
+    "date",
+)  # Metadata fields to exclude from model features by default, they are not predictive
 
 
 @dataclass(slots=True)
@@ -72,6 +79,7 @@ def prepare_model_matrix(
             f"feature_frame is missing required feature columns: {missing_columns}"
         )
 
+    # Select and coerce the feature columns to a clean numeric matrix, filling non-convertible values with 0.0
     matrix = feature_frame[resolved_feature_columns].copy()
     matrix = matrix.apply(pd.to_numeric, errors="coerce").fillna(0.0)
     return matrix.astype(float)
@@ -92,10 +100,12 @@ def train_isolation_forest(
     The returned artifact includes both the fitted model and the exact feature
     schema required to score future data consistently.
     """
+
+    # Prepare the model matrix and infer feature columns if not provided
     resolved_feature_columns = feature_columns or infer_feature_columns(feature_frame)
     matrix = prepare_model_matrix(feature_frame, resolved_feature_columns)
 
-    # Fit on the aligned numeric matrix so saved feature order matches scoring.
+    # Fit on the aligned numeric matrix so saved feature order matches scoring
     model = IsolationForest(
         contamination=contamination,
         n_estimators=n_estimators,
@@ -150,12 +160,15 @@ def score_feature_frame(
     """
     matrix = prepare_model_matrix(feature_frame, artifact.feature_columns)
 
-    # IsolationForest returns higher values for normal points, so invert it.
+    # Compute scores, IsolationForest returns higher values for normal points so invert it
     anomaly_scores = -artifact.model.score_samples(matrix)
 
+    # Preserve metadata columns for output
     output_columns = [
         column for column in ("grid_id", "date") if column in feature_frame.columns
     ]
+
+    # Build and return the scored frame with metadata and scores
     scored_frame = (
         feature_frame[output_columns].copy()
         if output_columns

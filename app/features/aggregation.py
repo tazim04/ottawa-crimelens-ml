@@ -17,10 +17,7 @@ def prepare_daily_frame(
     """
     Aggregate raw crime rows into a dense daily grid feature frame.
     The returned frame has one row per grid cell per day, with zero-filled counts for missing days.
-    This is used by both training and scoring workflows to collapse raw records into a common format for feature computation.
-
-    The output is reindexed across the full grid/date range so rolling windows
-    see zero-crime days explicitly instead of skipping them.
+    Used in compute_features to build actual model-facing features.
     """
     # Copy the input frame to avoid mutating caller data
     frame = crime_records.copy()
@@ -133,6 +130,9 @@ def compute_features(
 ) -> pd.DataFrame:
     """
     Compute rolling, share, fallback-rate, and calendar features.
+
+    Returns model-facing feature frame with one row per grid/day, with static
+    features such as rolling averages and share metrics.
 
     ``history_days`` counts prior observed grid/day rows only. Zero-filled
     dates remain useful for rolling totals but do not count as observed history.
