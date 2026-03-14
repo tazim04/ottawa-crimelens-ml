@@ -1,4 +1,5 @@
 from datetime import date
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -266,3 +267,32 @@ def test_build_training_features_rejects_inverted_dates() -> None:
             start_date="2026-01-03",
             end_date="2026-01-01",
         )
+
+
+def test_fetch_crime_records_uses_guarded_reported_date_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that fetch SQL falls back to reported dates for clearly invalid occurred dates."""
+    captured: dict[str, object] = {}
+
+    def fake_read_sql_query(sql, con, params):
+        captured["sql"] = str(sql)
+        captured["params"] = params
+        return pd.DataFrame()
+
+    monkeypatch.setattr(feature_builder.pd, "read_sql_query", fake_read_sql_query)
+
+    feature_builder._fetch_crime_records(
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+    )
+
+    query_text = cast(str, captured["sql"])
+    assert "WHEN occurred_date > reported_date THEN reported_date" in query_text
+    assert "WHEN occurred_date IS NULL THEN reported_date" in query_text
+    assert "INTERVAL" not in query_text
+    assert "AS used_reported_date_fallback" in query_text
+    assert cast(dict[str, date], captured["params"]) == {
+        "start_date": date(2026, 1, 1),
+        "end_date": date(2026, 1, 31),
+    }

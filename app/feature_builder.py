@@ -64,6 +64,7 @@ def build_training_features(
     if resolved_start_date > resolved_end_date:
         raise ValueError("start_date must be on or before end_date")
 
+    # Build model-ready features
     features = _build_feature_frame(
         start_date=resolved_start_date,
         end_date=resolved_end_date,
@@ -125,22 +126,27 @@ def _build_feature_frame(
 
 def _fetch_crime_records(start_date: date, end_date: date) -> pd.DataFrame:
     """
-    Fetch raw crimes for the requested range using fallback event timestamps.
+    Fetch raw crimes for the requested range using guarded fallback event timestamps.
 
-    ``occurred_*`` is treated as the preferred signal because it best reflects
-    when the incident happened. ``reported_*`` is used as a fallback when the
-    occurred fields are missing.
+    ``occurred_date`` is preferred when it looks plausible. ``reported_date`` is
+    used when the occurred date is missing or falls after the reported date.
     """
-    # Resolve one event date/hour per crime row directly in SQL.
+    # Resolve one event date/hour per crime row directly in SQL for cleaner downstream processing. The query also flags when fallbacks were used
     query = text(
         f"""
         SELECT
             grid_id,
-            COALESCE(occurred_date, reported_date)::date AS event_date,
+            CASE
+                WHEN occurred_date IS NULL THEN reported_date
+                WHEN reported_date IS NULL THEN occurred_date
+                WHEN occurred_date > reported_date THEN reported_date
+                ELSE occurred_date
+            END::date AS event_date,
             COALESCE(occurred_hour, reported_hour) AS event_hour,
             offence_category,
             CASE
                 WHEN occurred_date IS NULL AND reported_date IS NOT NULL THEN 1
+                WHEN reported_date IS NOT NULL AND occurred_date > reported_date THEN 1
                 ELSE 0
             END AS used_reported_date_fallback,
             CASE
@@ -149,12 +155,27 @@ def _fetch_crime_records(start_date: date, end_date: date) -> pd.DataFrame:
             END AS used_reported_hour_fallback
         FROM {CRIME_RECORDS_TABLE}
         WHERE grid_id IS NOT NULL
-          AND COALESCE(occurred_date, reported_date) BETWEEN :start_date AND :end_date
-        ORDER BY grid_id, COALESCE(occurred_date, reported_date), id
+          AND (
+              CASE
+                  WHEN occurred_date IS NULL THEN reported_date
+                  WHEN reported_date IS NULL THEN occurred_date
+                  WHEN occurred_date > reported_date THEN reported_date
+                  ELSE occurred_date
+              END
+          ) BETWEEN :start_date AND :end_date
+        ORDER BY
+            grid_id,
+            (
+                CASE
+                    WHEN occurred_date IS NULL THEN reported_date
+                    WHEN reported_date IS NULL THEN occurred_date
+                    WHEN occurred_date > reported_date THEN reported_date
+                    ELSE occurred_date
+                END
+            ),
+            id
         """
     )
     return pd.read_sql_query(
-        sql=query,
-        con=engine,
-        params={"start_date": start_date, "end_date": end_date},
+        sql=query, con=engine, params={"start_date": start_date, "end_date": end_date}
     )

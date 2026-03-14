@@ -1,6 +1,7 @@
 import os
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
+load_dotenv()
 
 DB_HOST = os.getenv("NEON_DB_URL")
 DB_NAME = os.getenv("NEON_DB_NAME", "neondb")

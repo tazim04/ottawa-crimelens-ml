@@ -3,7 +3,6 @@ import pandas as pd
 DEFAULT_TRIAGE_HIGH_PERCENTILE = 0.9
 DEFAULT_TRIAGE_MEDIUM_PERCENTILE = 0.75
 
-
 def assign_triage_labels(
     scored_frame: pd.DataFrame,
     *,

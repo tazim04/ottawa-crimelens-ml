@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date, datetime
 from pathlib import Path
@@ -17,6 +18,8 @@ from app.triage import (
     DEFAULT_TRIAGE_HIGH_PERCENTILE,
     DEFAULT_TRIAGE_MEDIUM_PERCENTILE,
 )
+
+logger = logging.getLogger(__name__)
 
 
 ###### Pipeline-level scoring workflow #######
@@ -39,28 +42,35 @@ def run_scoring_pipeline(
     persist_results: bool = True,
     results_table: str = DEFAULT_SCORING_RESULTS_TABLE,
     if_exists: ToSqlIfExists = "append",
-    high_percentile: float = DEFAULT_TRIAGE_HIGH_PERCENTILE,
-    medium_percentile: float = DEFAULT_TRIAGE_MEDIUM_PERCENTILE,
 ) -> pd.DataFrame:
     """
     Execute the full daily scoring workflow.
     """
+    logger.info("Starting daily scoring pipeline")
     resolved_target_date = resolve_scoring_date(target_date)
     scored_frame = score_daily_features(
         target_date=resolved_target_date,
         model_artifact_path=model_artifact_path,
         lookback_days=lookback_days,
         min_history_days=min_history_days,
-        high_percentile=high_percentile,
-        medium_percentile=medium_percentile,
+        high_percentile=DEFAULT_TRIAGE_HIGH_PERCENTILE,
+        medium_percentile=DEFAULT_TRIAGE_MEDIUM_PERCENTILE,
     )
 
+    logger.info("Scoring pipeline completed for target date %s", resolved_target_date)
+
     if persist_results:
+        logger.info(
+            "Persisting scored results to Postgres table '%s' with if_exists='%s'",
+            results_table,
+            if_exists,
+        )
         persist_scored_results(
             scored_frame,
             table_name=results_table,
             if_exists=if_exists,
         )
+        logger.info("Scored results persisted to table '%s'", results_table)
 
     return scored_frame
 
@@ -120,6 +130,15 @@ def persist_scored_results(
     """
     if scored_frame.empty:
         return 0
+
+    target_url = engine.url.render_as_string(hide_password=True)
+    logger.info(
+        "Writing %s scored rows to '%s' on %s (if_exists='%s')",
+        len(scored_frame),
+        table_name,
+        target_url,
+        if_exists,
+    )
 
     scored_frame.to_sql(
         name=table_name,

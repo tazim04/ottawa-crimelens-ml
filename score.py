@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 from app.scoring import run_scoring_pipeline
+
+logger = logging.getLogger(__name__)
+DEFAULT_PREVIEW_ROWS = 5
+
+
+def configure_logging() -> None:
+    """Configure a simple console logger for the scoring CLI."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--persist-results",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="Persist scored rows to Postgres. Use --no-persist-results to disable.",
     )
     parser.add_argument(
@@ -45,49 +54,42 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["fail", "replace", "append", "delete_rows"],
         help="Behavior to use if the destination table already exists.",
     )
-    parser.add_argument(
-        "--high-percentile",
-        type=float,
-        help="Percentile threshold for assigning a high triage label.",
-    )
-    parser.add_argument(
-        "--medium-percentile",
-        type=float,
-        help="Percentile threshold for assigning a medium triage label.",
-    )
-    parser.add_argument(
-        "--preview-rows",
-        type=int,
-        default=5,
-        help="Number of scored rows to print as a preview.",
-    )
     return parser
 
 
 def main() -> int:
     """Parse CLI args, run the scoring pipeline, and print a short summary."""
+    configure_logging()
     args = build_parser().parse_args()
 
+    logger.info("Starting scoring with the following parameters")
+    for arg, value in vars(args).items():
+        logger.info("  %s: %s", arg, value)
+
+    pipeline_kwargs = {
+        "target_date": args.target_date,
+        "model_artifact_path": args.model_artifact_path,
+        "lookback_days": args.lookback_days,
+        "min_history_days": args.min_history_days,
+        "persist_results": args.persist_results,
+        "results_table": args.results_table,
+        "if_exists": args.if_exists,
+    }
+
     scored_results = run_scoring_pipeline(
-        target_date=args.target_date,
-        model_artifact_path=args.model_artifact_path,
-        lookback_days=args.lookback_days,
-        min_history_days=args.min_history_days,
-        persist_results=args.persist_results,
-        results_table=args.results_table,
-        if_exists=args.if_exists,
-        high_percentile=args.high_percentile,
-        medium_percentile=args.medium_percentile,
+        **pipeline_kwargs,
     )
 
-    print(f"Scored {len(scored_results)} rows.")
+    logger.info("Scored %s rows", len(scored_results))
     if scored_results.empty:
-        print("No scoring rows were produced for the requested date.")
+        logger.info("No scoring rows were produced for the requested date")
         return 0
 
-    preview_rows = max(args.preview_rows, 0)
-    if preview_rows:
-        print(scored_results.head(preview_rows).to_string(index=False))
+    # Print a preview of the scored results, including metadata and anomaly scores
+    logger.info(
+        "Scored results preview:\n%s",
+        scored_results.head(DEFAULT_PREVIEW_ROWS).to_string(index=False),
+    )
     return 0
 
 

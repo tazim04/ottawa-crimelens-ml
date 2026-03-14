@@ -6,3 +6,4 @@ numpy
 joblib
 ruff
 pytest
+dotenv

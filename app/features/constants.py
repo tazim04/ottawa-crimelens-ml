@@ -9,6 +9,7 @@ DEFAULT_MIN_HISTORY_DAYS = 7
 # Source table for raw crime rows used to derive daily grid features
 CRIME_RECORDS_TABLE = "crime_records"
 
+
 # Fixed production offence-category vocabulary to keep feature columns stable
 OFFENCE_CATEGORIES = [
     "Arson",

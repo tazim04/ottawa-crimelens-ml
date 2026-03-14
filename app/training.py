@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from app.features.constants import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_MIN_HISTORY_DAYS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 ##### Pipeline-level training workflow ######
@@ -41,6 +44,7 @@ def run_training_pipeline(
     """
     Build training features, train the model artifact, and persist it to disk.
     """
+    logger.info("Building training dataset")
     training_features = build_training_dataset(
         start_date=start_date,
         end_date=end_date,
@@ -52,6 +56,13 @@ def run_training_pipeline(
             "No training features were produced for the requested date range"
         )
 
+    logger.info(
+        "Training dataset built with %s rows. Sample of features:\n%s",
+        len(training_features),
+        training_features.head().to_string(index=False),
+    )
+
+    logger.info("Training Isolation Forest model artifact")
     artifact = train_isolation_forest(
         training_features,
         model_version=model_version,
@@ -60,6 +71,9 @@ def run_training_pipeline(
         random_state=random_state,
     )
     saved_path = save_model_artifact(artifact, resolve_model_artifact_path(output_path))
+
+    logger.info("Model artifact trained and saved to %s", saved_path)
+
     return artifact, saved_path
 
 
