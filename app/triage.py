@@ -136,7 +136,9 @@ def _build_triage_explanation(row: pd.Series, *, window_suffix: str) -> str:
     # Highlight large deviations, or note when low triage looks stable
     if abs(count_zscore) >= 2:
         direction = "above" if count_zscore > 0 else "below"
-        parts.append(f"That is {abs(count_zscore):.1f} standard deviations {direction} baseline.")
+        parts.append(
+            f"That is {abs(count_zscore):.1f} standard deviations {direction} baseline."
+        )
     elif abs(count_delta) <= 1 and triage_label == "low":
         parts.append("Activity is close to the recent baseline.")
 

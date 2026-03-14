@@ -101,7 +101,10 @@ def test_score_daily_features_uses_builder_and_model_layers(
     assert result["triage_label"].tolist() == ["medium", "high"]
     assert result["model_version"].tolist() == ["v1", "v1"]
     assert "triage_explanation" in result.columns
-    assert "Observed 7 crimes versus a recent average of 3.0" in result.loc[1, "triage_explanation"]
+    assert (
+        "Observed 7 crimes versus a recent average of 3.0"
+        in result.loc[1, "triage_explanation"]
+    )
 
 
 def test_run_scoring_pipeline_persists_results_when_enabled(
