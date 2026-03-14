@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 def configure_logging() -> None:
     """Configure a simple console logger for the training CLI."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

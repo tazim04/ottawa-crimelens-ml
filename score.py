@@ -11,7 +11,9 @@ DEFAULT_PREVIEW_ROWS = 5
 
 def configure_logging() -> None:
     """Configure a simple console logger for the scoring CLI."""
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
