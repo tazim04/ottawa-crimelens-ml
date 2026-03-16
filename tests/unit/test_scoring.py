@@ -119,15 +119,15 @@ def test_score_daily_features_uses_builder_and_model_layers(
     assert "triage_explanation" in result.columns
     assert "triage_summary" not in result.columns
     assert (
-        "Observed 7 crimes versus a recent average of 3.0 (+4.0)."
+        "Observed 7 crimes versus a recent average of 3.0, which is 4.0 more than usual."
         in result.loc[1, "triage_explanation"]
     )
     assert (
-        "Assaults was 5 versus a recent average of 1.5"
+        "Assaults was 5 compared with the usual 1.5, a big increase."
         in result.loc[1, "triage_explanation"]
     )
     assert (
-        "Evening incidents were 6 versus a recent average of 2.0"
+        "Evening incidents were 6 compared with the usual 2.0, a clear increase."
         in result.loc[1, "triage_explanation"]
     )
 

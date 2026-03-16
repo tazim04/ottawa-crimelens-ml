@@ -131,7 +131,6 @@ def _build_triage_explanation(
 ) -> str:
     """Summarize the meaningful observable signals for one scored grid/day row."""
 
-    # Extract the key features needed to build the explanation, using safe defaults if any are missing
     triage_label = str(row.get("triage_label", "unknown")).lower()
     anomaly_score = float(row.get("anomaly_score", 0.0))
     triage_percentile = float(row.get("triage_percentile", 0.0))
@@ -145,33 +144,34 @@ def _build_triage_explanation(
         1.0, rolling_mean * 0.25
     )
 
-    # Start building explanation with overall triage score
+    # Percentile
+    percentile_as_rank = max(1, int(round(triage_percentile * 100)))
     parts = [
         (
-            f"{triage_label.capitalize()} triage: anomaly score {anomaly_score:.3f} "
-            f"({triage_percentile:.0%} percentile)."
+            f"{triage_label.capitalize()} triage: anomaly score {anomaly_score:.3f}. "
+            f"This is higher than about {percentile_as_rank}% of scored locations."
         )
     ]
 
-    # Compare today's activity to the recent rolling baseline
+    # Crime volume delta
     if total_crimes or rolling_mean:
         parts.append(
             (
                 f"Observed {total_crimes:.0f} crimes versus a recent average of "
-                f"{rolling_mean:.1f} ({count_delta:+.1f})."
+                f"{rolling_mean:.1f}, which is {_format_delta(count_delta)}."
             )
         )
 
-    # Explain volume changes when they are meaningful enough to matter
+    # Overall signal strength
     if abs(count_zscore) >= 1.5 or abs(count_delta) >= max(2.0, rolling_mean * 0.5):
-        direction = "above" if count_zscore > 0 else "below"
+        direction_text = "above" if count_delta > 0 else "below"
         parts.append(
-            f"Total crime volume was {direction} baseline by {abs(count_zscore):.1f} standard deviations."
+            f"Overall crime volume is {_describe_shift_strength(count_zscore)} {direction_text} usual for this area."
         )
     elif abs(count_delta) <= 1 and triage_label == "low":
-        parts.append("Activity is close to the recent baseline.")
+        parts.append("Activity is close to the usual level for this area.")
 
-    # Surface all meaningful category-level changes
+    # Category and time-bucket signals
     for (
         category_label,
         direction,
@@ -179,16 +179,13 @@ def _build_triage_explanation(
         category_mean,
         category_zscore,
     ) in category_shifts[:3]:
-        direction_text = "above" if direction == "up" else "below"
         parts.append(
             (
-                f"{category_label.capitalize()} was {category_count:.0f} versus a recent "
-                f"average of {category_mean:.1f}, {direction_text} normal by "
-                f"{abs(category_zscore):.1f} standard deviations."
+                f"{category_label.capitalize()} was {category_count:.0f} compared with the usual "
+                f"{category_mean:.1f}, a {_describe_directional_shift(direction, category_zscore)}."
             )
         )
 
-    # Surface meaningful time-of-day shifts using the same baseline logic
     for (
         bucket_label,
         direction,
@@ -196,21 +193,19 @@ def _build_triage_explanation(
         bucket_mean,
         bucket_zscore,
     ) in time_bucket_shifts[:2]:
-        direction_text = "above" if direction == "up" else "below"
         parts.append(
             (
-                f"{bucket_label.capitalize()} incidents were {bucket_count:.0f} versus a recent "
-                f"average of {bucket_mean:.1f}, {direction_text} normal by "
-                f"{abs(bucket_zscore):.1f} standard deviations."
+                f"{bucket_label.capitalize()} incidents were {bucket_count:.0f} compared with the usual "
+                f"{bucket_mean:.1f}, a {_describe_directional_shift(direction, bucket_zscore)}."
             )
         )
 
-    # If no strong signals were found, add a generic explanation to avoid blank outputs
+    # Fallback explanations
     if len(parts) == 1:
         if triage_label == "low" and is_close_to_baseline:
             parts.append("No unusual activity.")
         else:
-            parts.append("Mild changes with no dominant driver.")
+            parts.append("There were mild changes, but no single clear driver stood out.")
 
     return " ".join(parts)
 
@@ -247,6 +242,38 @@ def _category_shifts(
 
     shifts.sort(key=lambda item: item[0], reverse=True)
     return [shift[1:] for shift in shifts]
+
+
+def _format_delta(delta: float) -> str:
+    """Render a plain-language difference from the recent average."""
+    if delta > 0:
+        return f"{abs(delta):.1f} more than usual"
+    if delta < 0:
+        return f"{abs(delta):.1f} fewer than usual"
+    return "right in line with the recent average"
+
+
+def _describe_shift_strength(zscore: float) -> str:
+    """Translate statistical distance into plainer severity wording."""
+    strength = abs(zscore)
+    if strength >= 2.5:
+        return "far"
+    if strength >= 1.5:
+        return "clearly"
+    return "slightly"
+
+
+def _describe_directional_shift(direction: str, zscore: float) -> str:
+    """Describe an up/down shift without exposing statistical jargon."""
+    strength = abs(zscore)
+    if strength >= 2.5:
+        modifier = "big"
+    elif strength >= 1.5:
+        modifier = "clear"
+    else:
+        modifier = "small"
+    noun = "increase" if direction == "up" else "drop"
+    return f"{modifier} {noun}"
 
 
 def _time_bucket_shifts(

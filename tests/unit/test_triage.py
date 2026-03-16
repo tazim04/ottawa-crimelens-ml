@@ -68,14 +68,11 @@ def test_add_triage_explanations_summarizes_feature_signals() -> None:
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("High triage: anomaly score 0.900 (95% percentile).")
-    assert "Observed 8 crimes versus a recent average of 3.0 (+5.0)." in explanation
-    assert (
-        "Total crime volume was above baseline by 2.6 standard deviations."
-        in explanation
-    )
-    assert "Assaults was 5 versus a recent average of 1.5" in explanation
-    assert "Evening incidents were 6 versus a recent average of 2.0" in explanation
+    assert explanation.startswith("High triage: anomaly score 0.900. This is higher than about 95% of scored locations.")
+    assert "Observed 8 crimes versus a recent average of 3.0, which is 5.0 more than usual." in explanation
+    assert "Overall crime volume is far above usual for this area." in explanation
+    assert "Assaults was 5 compared with the usual 1.5, a big increase." in explanation
+    assert "Evening incidents were 6 compared with the usual 2.0, a clear increase." in explanation
 
 
 def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
@@ -117,13 +114,10 @@ def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("High triage: anomaly score 0.700 (100% percentile).")
-    assert "Observed 0 crimes versus a recent average of 11.4 (-11.4)." in explanation
-    assert (
-        "Total crime volume was below baseline by 2.8 standard deviations."
-        in explanation
-    )
-    assert "Assaults was 0 versus a recent average of 2.0" in explanation
+    assert explanation.startswith("High triage: anomaly score 0.700. This is higher than about 100% of scored locations.")
+    assert "Observed 0 crimes versus a recent average of 11.4, which is 11.4 fewer than usual." in explanation
+    assert "Overall crime volume is far below usual for this area." in explanation
+    assert "Assaults was 0 compared with the usual 2.0, a clear drop." in explanation
 
 
 def test_add_triage_explanations_uses_close_to_baseline_wording_for_low_rows() -> None:
@@ -161,8 +155,8 @@ def test_add_triage_explanations_uses_close_to_baseline_wording_for_low_rows() -
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("Low triage: anomaly score 0.200 (20% percentile).")
-    assert explanation.endswith("Activity is close to the recent baseline.")
+    assert explanation.startswith("Low triage: anomaly score 0.200. This is higher than about 20% of scored locations.")
+    assert explanation.endswith("Activity is close to the usual level for this area.")
 
 
 def test_add_triage_explanations_keeps_high_triage_rows_out_of_low_baseline_wording() -> (
@@ -203,8 +197,8 @@ def test_add_triage_explanations_keeps_high_triage_rows_out_of_low_baseline_word
 
     explanation = explained_frame.loc[0, "triage_explanation"]
     assert explanation == (
-        "High triage: anomaly score 0.610 (94% percentile). "
-        "Observed 0 crimes versus a recent average of 1.3 (-1.3)."
+        "High triage: anomaly score 0.610. This is higher than about 94% of scored locations. "
+        "Observed 0 crimes versus a recent average of 1.3, which is 1.3 fewer than usual."
     )
 
 
@@ -244,6 +238,6 @@ def test_add_triage_explanations_keeps_tiny_baseline_high_triage_rows_minimal() 
 
     explanation = explained_frame.loc[0, "triage_explanation"]
     assert explanation == (
-        "High triage: anomaly score 0.561 (90% percentile). "
-        "Observed 0 crimes versus a recent average of 0.6 (-0.6)."
+        "High triage: anomaly score 0.561. This is higher than about 90% of scored locations. "
+        "Observed 0 crimes versus a recent average of 0.6, which is 0.6 fewer than usual."
     )
