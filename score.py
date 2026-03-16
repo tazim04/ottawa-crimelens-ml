@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--if-exists",
-        default="append",
+        default="replace",
         choices=["fail", "replace", "append", "delete_rows"],
         help="Behavior to use if the destination table already exists.",
     )
