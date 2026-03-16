@@ -205,7 +205,9 @@ def _build_triage_explanation(
         if triage_label == "low" and is_close_to_baseline:
             parts.append("No unusual activity.")
         else:
-            parts.append("There were mild changes, but no single clear driver stood out.")
+            parts.append(
+                "There were mild changes, but no single clear driver stood out."
+            )
 
     return " ".join(parts)
 

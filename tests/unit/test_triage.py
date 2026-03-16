@@ -68,11 +68,19 @@ def test_add_triage_explanations_summarizes_feature_signals() -> None:
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("High triage: anomaly score 0.900. This is higher than about 95% of scored locations.")
-    assert "Observed 8 crimes versus a recent average of 3.0, which is 5.0 more than usual." in explanation
+    assert explanation.startswith(
+        "High triage: anomaly score 0.900. This is higher than about 95% of scored locations."
+    )
+    assert (
+        "Observed 8 crimes versus a recent average of 3.0, which is 5.0 more than usual."
+        in explanation
+    )
     assert "Overall crime volume is far above usual for this area." in explanation
     assert "Assaults was 5 compared with the usual 1.5, a big increase." in explanation
-    assert "Evening incidents were 6 compared with the usual 2.0, a clear increase." in explanation
+    assert (
+        "Evening incidents were 6 compared with the usual 2.0, a clear increase."
+        in explanation
+    )
 
 
 def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
@@ -114,8 +122,13 @@ def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("High triage: anomaly score 0.700. This is higher than about 100% of scored locations.")
-    assert "Observed 0 crimes versus a recent average of 11.4, which is 11.4 fewer than usual." in explanation
+    assert explanation.startswith(
+        "High triage: anomaly score 0.700. This is higher than about 100% of scored locations."
+    )
+    assert (
+        "Observed 0 crimes versus a recent average of 11.4, which is 11.4 fewer than usual."
+        in explanation
+    )
     assert "Overall crime volume is far below usual for this area." in explanation
     assert "Assaults was 0 compared with the usual 2.0, a clear drop." in explanation
 
@@ -155,7 +168,9 @@ def test_add_triage_explanations_uses_close_to_baseline_wording_for_low_rows() -
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert explanation.startswith("Low triage: anomaly score 0.200. This is higher than about 20% of scored locations.")
+    assert explanation.startswith(
+        "Low triage: anomaly score 0.200. This is higher than about 20% of scored locations."
+    )
     assert explanation.endswith("Activity is close to the usual level for this area.")
 
 
