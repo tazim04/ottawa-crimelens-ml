@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.feature_builder import build_training_features
-from app.model import (
+from app.features.feature_builder import build_training_features
+from app.model.model import (
     DEFAULT_MODEL_VERSION,
     ModelArtifact,
     save_model_artifact,
@@ -56,10 +56,8 @@ def run_training_pipeline(
             "No training features were produced for the requested date range"
         )
 
-    logger.info(
-        "Training dataset built with %s rows. Sample of features:\n%s",
-        len(training_features),
-        training_features.head().to_string(index=False),
+    logging.info(
+        "Training dataset built with %d rows and %d columns", *training_features.shape
     )
 
     logger.info("Training Isolation Forest model artifact")

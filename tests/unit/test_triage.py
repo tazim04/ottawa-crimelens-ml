@@ -2,7 +2,7 @@ from datetime import date
 
 import pandas as pd
 
-from app import triage
+from app.model.pipelines.triage import labelling
 
 
 def test_assign_triage_labels_adds_percentiles_and_labels() -> None:
@@ -15,7 +15,7 @@ def test_assign_triage_labels_adds_percentiles_and_labels() -> None:
         ]
     )
 
-    triaged_frame = triage.assign_triage_labels(
+    triaged_frame = labelling.assign_triage_labels(
         scored_frame,
         medium_percentile=0.5,
         high_percentile=0.8,
@@ -26,7 +26,7 @@ def test_assign_triage_labels_adds_percentiles_and_labels() -> None:
 
 
 def test_add_triage_explanations_summarizes_feature_signals() -> None:
-    """Test that explanation text reflects baseline, mix, and timing signals."""
+    """Test that explanation text reflects baseline, category, and timing signals."""
     triaged_frame = pd.DataFrame(
         [
             {
@@ -49,21 +49,201 @@ def test_add_triage_explanations_summarizes_feature_signals() -> None:
                 "count_zscore_30d": 2.6,
                 "reported_date_fallback_rate": 0.0,
                 "reported_hour_fallback_rate": 0.0,
-                "category_assaults_share": 0.625,
-                "evening_crimes_share": 0.75,
+                "category_assaults": 5.0,
+                "category_assaults_rolling_mean_30d": 1.5,
+                "category_assaults_delta_from_mean": 3.5,
+                "category_assaults_zscore_30d": 2.8,
+                "evening_crimes": 6.0,
+                "evening_crimes_rolling_mean_30d": 2.0,
+                "evening_crimes_delta_from_mean": 4.0,
+                "evening_crimes_zscore_30d": 2.1,
             }
         ]
     )
 
-    explained_frame = triage.add_triage_explanations(
+    explained_frame = labelling.add_triage_explanations(
         triaged_frame,
         feature_frame,
         lookback_days=30,
     )
 
     explanation = explained_frame.loc[0, "triage_explanation"]
-    assert "95% percentile" in explanation
-    assert "Observed 8 crimes versus a recent average of 3.0" in explanation
-    assert "2.6 standard deviations above baseline" in explanation
-    assert "assaults (62% of incidents)" in explanation
-    assert "evening (75%)" in explanation
+    assert explanation.startswith("High triage: anomaly score 0.900 (95% percentile).")
+    assert "Observed 8 crimes versus a recent average of 3.0 (+5.0)." in explanation
+    assert (
+        "Total crime volume was above baseline by 2.6 standard deviations."
+        in explanation
+    )
+    assert "Assaults was 5 versus a recent average of 1.5" in explanation
+    assert "Evening incidents were 6 versus a recent average of 2.0" in explanation
+
+
+def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
+    """Test that a large drop describes the below-baseline change in the explanation."""
+    triaged_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "anomaly_score": 0.7,
+                "triage_percentile": 1.0,
+                "triage_label": "high",
+            }
+        ]
+    )
+    feature_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 0.0,
+                "rolling_mean_30d": 11.4,
+                "count_delta_from_mean": -11.4,
+                "count_zscore_30d": -2.8,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+                "category_assaults": 0.0,
+                "category_assaults_rolling_mean_30d": 2.0,
+                "category_assaults_delta_from_mean": -2.0,
+                "category_assaults_zscore_30d": -2.2,
+            }
+        ]
+    )
+
+    explained_frame = labelling.add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=30,
+    )
+
+    explanation = explained_frame.loc[0, "triage_explanation"]
+    assert explanation.startswith("High triage: anomaly score 0.700 (100% percentile).")
+    assert "Observed 0 crimes versus a recent average of 11.4 (-11.4)." in explanation
+    assert (
+        "Total crime volume was below baseline by 2.8 standard deviations."
+        in explanation
+    )
+    assert "Assaults was 0 versus a recent average of 2.0" in explanation
+
+
+def test_add_triage_explanations_uses_close_to_baseline_wording_for_low_rows() -> None:
+    """Test that low-triage rows near baseline stay conservative in the explanation."""
+    triaged_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "anomaly_score": 0.2,
+                "triage_percentile": 0.2,
+                "triage_label": "low",
+            }
+        ]
+    )
+    feature_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 0.0,
+                "rolling_mean_30d": 0.8,
+                "count_delta_from_mean": -0.8,
+                "count_zscore_30d": -0.4,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+            }
+        ]
+    )
+
+    explained_frame = labelling.add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=30,
+    )
+
+    explanation = explained_frame.loc[0, "triage_explanation"]
+    assert explanation.startswith("Low triage: anomaly score 0.200 (20% percentile).")
+    assert explanation.endswith("Activity is close to the recent baseline.")
+
+
+def test_add_triage_explanations_keeps_high_triage_rows_out_of_low_baseline_wording() -> (
+    None
+):
+    """Test that high-triage rows do not reuse the low-severity baseline sentence."""
+    triaged_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "anomaly_score": 0.61,
+                "triage_percentile": 0.94,
+                "triage_label": "high",
+            }
+        ]
+    )
+    feature_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 0.0,
+                "rolling_mean_30d": 1.3,
+                "count_delta_from_mean": -1.3,
+                "count_zscore_30d": -0.9,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+            }
+        ]
+    )
+
+    explained_frame = labelling.add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=30,
+    )
+
+    explanation = explained_frame.loc[0, "triage_explanation"]
+    assert explanation == (
+        "High triage: anomaly score 0.610 (94% percentile). "
+        "Observed 0 crimes versus a recent average of 1.3 (-1.3)."
+    )
+
+
+def test_add_triage_explanations_keeps_tiny_baseline_high_triage_rows_minimal() -> None:
+    """Test that a high-triage row with a tiny baseline does not invent extra drivers."""
+    triaged_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "anomaly_score": 0.561,
+                "triage_percentile": 0.9027777777777778,
+                "triage_label": "high",
+            }
+        ]
+    )
+    feature_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 0.0,
+                "rolling_mean_30d": 0.6,
+                "count_delta_from_mean": -0.6,
+                "count_zscore_30d": -0.9,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+            }
+        ]
+    )
+
+    explained_frame = labelling.add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=30,
+    )
+
+    explanation = explained_frame.loc[0, "triage_explanation"]
+    assert explanation == (
+        "High triage: anomaly score 0.561 (90% percentile). "
+        "Observed 0 crimes versus a recent average of 0.6 (-0.6)."
+    )

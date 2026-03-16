@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import logging
 
-from app.model import DEFAULT_MODEL_VERSION
-from app.training import (
+from app.model.model import DEFAULT_MODEL_VERSION
+from app.model.pipelines.training import (
     DEFAULT_MODEL_ARTIFACT_PATH,
     run_training_pipeline,
 )

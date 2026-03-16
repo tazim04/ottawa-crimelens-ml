@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from app import scoring
+from app.model.pipelines.triage import scoring
 
 
 def test_resolve_scoring_date_normalizes_supported_inputs() -> None:
@@ -40,7 +40,15 @@ def test_score_daily_features_uses_builder_and_model_layers(
                 "count_zscore_30d": 0.0,
                 "reported_date_fallback_rate": 0.0,
                 "reported_hour_fallback_rate": 0.0,
+                "category_assaults": 1.0,
+                "category_assaults_rolling_mean_30d": 1.0,
+                "category_assaults_delta_from_mean": 0.0,
+                "category_assaults_zscore_30d": 0.0,
                 "category_assaults_share": 0.5,
+                "evening_crimes": 1.0,
+                "evening_crimes_rolling_mean_30d": 1.0,
+                "evening_crimes_delta_from_mean": 0.0,
+                "evening_crimes_zscore_30d": 0.0,
                 "evening_crimes_share": 0.5,
             },
             {
@@ -52,7 +60,15 @@ def test_score_daily_features_uses_builder_and_model_layers(
                 "count_zscore_30d": 2.5,
                 "reported_date_fallback_rate": 0.0,
                 "reported_hour_fallback_rate": 0.0,
+                "category_assaults": 5.0,
+                "category_assaults_rolling_mean_30d": 1.5,
+                "category_assaults_delta_from_mean": 3.5,
+                "category_assaults_zscore_30d": 2.8,
                 "category_assaults_share": 0.7,
+                "evening_crimes": 6.0,
+                "evening_crimes_rolling_mean_30d": 2.0,
+                "evening_crimes_delta_from_mean": 4.0,
+                "evening_crimes_zscore_30d": 2.1,
                 "evening_crimes_share": 0.8,
             },
         ]
@@ -101,8 +117,17 @@ def test_score_daily_features_uses_builder_and_model_layers(
     assert result["triage_label"].tolist() == ["medium", "high"]
     assert result["model_version"].tolist() == ["v1", "v1"]
     assert "triage_explanation" in result.columns
+    assert "triage_summary" not in result.columns
     assert (
-        "Observed 7 crimes versus a recent average of 3.0"
+        "Observed 7 crimes versus a recent average of 3.0 (+4.0)."
+        in result.loc[1, "triage_explanation"]
+    )
+    assert (
+        "Assaults was 5 versus a recent average of 1.5"
+        in result.loc[1, "triage_explanation"]
+    )
+    assert (
+        "Evening incidents were 6 versus a recent average of 2.0"
         in result.loc[1, "triage_explanation"]
     )
 

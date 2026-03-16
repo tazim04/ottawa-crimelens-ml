@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from app.features.constants import TIME_BUCKET_COLUMNS
+
 import joblib
 import pandas as pd
 from sklearn.ensemble import IsolationForest
@@ -14,10 +16,21 @@ from sklearn.ensemble import IsolationForest
 
 
 DEFAULT_MODEL_VERSION = "isolation_forest_v1"
+
+# Metadata fields to exclude from model features by default, they are not predictive
 DEFAULT_EXCLUDE_COLUMNS = (
     "grid_id",
     "date",
-)  # Metadata fields to exclude from model features by default, they are not predictive
+)
+
+# Patterns of feature columns to exclude from the model, they are redundant with other features
+DEFAULT_DROPPED_FEATURE_PATTERNS = (
+    "rolling_min_",
+    "rolling_max_",
+    "rolling_sum_",
+    "_delta_from_mean",
+    "_rolling_std_",
+)
 
 
 @dataclass(slots=True)
@@ -44,18 +57,64 @@ def infer_feature_columns(
     """
     Infer model feature columns from a feature frame.
 
-    All numeric columns except metadata fields like ``grid_id`` and ``date``
-    are treated as model inputs.
+    The model uses a curated subset of numeric features to reduce redundant
+    dimensions while preserving baseline context, relative-change signals, and
+    composition features.
     """
     feature_columns = [
         column
         for column in feature_frame.columns
         if column not in exclude_columns
         and pd.api.types.is_numeric_dtype(feature_frame[column])
+        and _is_selected_model_feature(column)
     ]
     if not feature_columns:
         raise ValueError("feature_frame does not contain any numeric feature columns")
     return feature_columns
+
+
+def _is_selected_model_feature(column: str) -> bool:
+    """Return whether a numeric feature column should be used by the model."""
+    if column in {
+        "reported_date_fallback_rate",
+        "reported_hour_fallback_rate",
+        "day_of_week_sin",
+        "day_of_week_cos",
+        "is_weekend",
+        "history_days",
+        "total_crimes",
+    }:
+        return True
+
+    if column.startswith("rolling_mean_") or column.startswith("rolling_std_"):
+        return True
+    if column.startswith("count_zscore_"):
+        return True
+
+    # Drop columns like *_rolling_min, *_delta_from_mean, etc that are redundant with the retained features and add dimensionality without clear predictive value
+    # These include statistical summaries for time bucket and category features (meant to be used for calculating shifts for triage explanations)
+    if any(pattern in column for pattern in DEFAULT_DROPPED_FEATURE_PATTERNS):
+        return False
+
+    if column in TIME_BUCKET_COLUMNS:
+        return True
+    if any(
+        column.startswith(f"{bucket}_rolling_mean_") for bucket in TIME_BUCKET_COLUMNS
+    ):
+        return True
+    if any(column.startswith(f"{bucket}_zscore_") for bucket in TIME_BUCKET_COLUMNS):
+        return True
+
+    if column.startswith("category_"):
+        if "_share" in column:
+            return True
+        if "_rolling_mean_" in column:
+            return True
+        if "_zscore_" in column:
+            return True
+        return True
+
+    return False
 
 
 def prepare_model_matrix(

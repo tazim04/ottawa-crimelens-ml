@@ -10,13 +10,16 @@ import pandas as pd
 from sqlalchemy import inspect, text
 
 from app.db import engine
-from app.feature_builder import build_daily_features
+from app.features.feature_builder import build_daily_features
 from app.features.constants import DEFAULT_LOOKBACK_DAYS
-from app.model import load_model_artifact, score_feature_frame
+from app.model.model import load_model_artifact, score_feature_frame
 
-from app.triage import add_triage_explanations, assign_triage_labels
+from app.model.pipelines.triage.labelling import (
+    add_triage_explanations,
+    assign_triage_labels,
+)
 
-from app.triage import (
+from app.model.pipelines.triage.labelling import (
     DEFAULT_TRIAGE_HIGH_PERCENTILE,
     DEFAULT_TRIAGE_MEDIUM_PERCENTILE,
 )
@@ -73,6 +76,12 @@ def run_scoring_pipeline(
             if_exists=if_exists,
         )
         logger.info("Scored results persisted to table '%s'", results_table)
+    else:
+        logger.info(
+            "Persistence of scored results is disabled. Skipping database write."
+        )
+        logging.info("Writing to csv file")
+        scored_frame.to_csv("scored_results.csv", index=False)
 
     return scored_frame
 
@@ -234,6 +243,7 @@ def score_daily_features(
                 "model_version",
                 "triage_percentile",
                 "triage_label",
+                "triage_explanation",
             ]
         )
 

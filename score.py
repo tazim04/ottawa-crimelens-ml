@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 
-from app.scoring import run_scoring_pipeline
+from app.model.pipelines.triage.scoring import run_scoring_pipeline
 
 logger = logging.getLogger(__name__)
 DEFAULT_PREVIEW_ROWS = 5

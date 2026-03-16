@@ -70,11 +70,13 @@ def prepare_daily_frame(
             values="count",
             aggfunc="sum",
             fill_value=0.0,
-        ).reset_index()
-        # Materialize zero columns for categories absent in this slice
-        for column in category_columns:
-            if column not in category_frame.columns:
-                category_frame[column] = 0.0
+        )
+
+        # Materialize zero columns for categories absent in this slice in one pass
+        category_frame = category_frame.reindex(
+            columns=category_columns, fill_value=0.0
+        )
+        category_frame = category_frame.reset_index()
         category_feature_columns = category_columns
     else:
         category_frame = pd.DataFrame(columns=["grid_id", "event_date"])
@@ -143,56 +145,115 @@ def compute_features(
     prior_total = grouped_total.shift(1)
     prior_observed = frame.groupby("grid_id")["has_source_row"].shift(1).fillna(0.0)
     window_suffix = f"{lookback_days}d"
+    derived_columns: dict[str, pd.Series] = {}
 
     # Rolling stats use only prior days to avoid leaking the current day
-    frame["history_days"] = prior_observed.groupby(frame["grid_id"]).cumsum()
-    frame[f"rolling_mean_{window_suffix}"] = grouped_rolling(
-        prior_total, frame["grid_id"], lookback_days, "mean"
-    )
-    frame[f"rolling_std_{window_suffix}"] = grouped_rolling(
+    history_days = prior_observed.groupby(frame["grid_id"]).cumsum()
+    rolling_mean = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "mean")
+    rolling_std = grouped_rolling(
         prior_total, frame["grid_id"], lookback_days, "std"
     ).fillna(0.0)
-    frame[f"rolling_min_{window_suffix}"] = grouped_rolling(
-        prior_total, frame["grid_id"], lookback_days, "min"
-    )
-    frame[f"rolling_max_{window_suffix}"] = grouped_rolling(
-        prior_total, frame["grid_id"], lookback_days, "max"
-    )
-    frame[f"rolling_sum_{window_suffix}"] = grouped_rolling(
-        prior_total, frame["grid_id"], lookback_days, "sum"
-    )
+    rolling_min = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "min")
+    rolling_max = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "max")
+    rolling_sum = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "sum")
+
+    derived_columns["history_days"] = history_days
+    derived_columns[f"rolling_mean_{window_suffix}"] = rolling_mean
+    derived_columns[f"rolling_std_{window_suffix}"] = rolling_std
+    derived_columns[f"rolling_min_{window_suffix}"] = rolling_min
+    derived_columns[f"rolling_max_{window_suffix}"] = rolling_max
+    derived_columns[f"rolling_sum_{window_suffix}"] = rolling_sum
 
     # Express the current day relative to its recent local baseline
-    frame["count_delta_from_mean"] = frame["total_crimes"] - frame[
-        f"rolling_mean_{window_suffix}"
-    ].fillna(0.0)
-    safe_std = frame[f"rolling_std_{window_suffix}"].replace(0.0, np.nan)
-    frame[f"count_zscore_{window_suffix}"] = (
-        frame["count_delta_from_mean"] / safe_std
-    ).fillna(0.0)
+    count_delta = frame["total_crimes"] - rolling_mean.fillna(0.0)
+    safe_std = rolling_std.replace(0.0, np.nan)
+    derived_columns["count_delta_from_mean"] = count_delta
+    derived_columns[f"count_zscore_{window_suffix}"] = (count_delta / safe_std).fillna(
+        0.0
+    )
+
+    # Track category-specific baselines so explanations can name the crime type that changed
+    for column in category_columns:
+        grouped_category = frame.groupby("grid_id")[column]
+        prior_category = grouped_category.shift(1)
+        rolling_mean_column = f"{column}_rolling_mean_{window_suffix}"
+        rolling_std_column = f"{column}_rolling_std_{window_suffix}"
+        delta_column = f"{column}_delta_from_mean"
+        zscore_column = f"{column}_zscore_{window_suffix}"
+
+        category_rolling_mean = grouped_rolling(
+            prior_category, frame["grid_id"], lookback_days, "mean"
+        ).fillna(0.0)
+        category_rolling_std = grouped_rolling(
+            prior_category, frame["grid_id"], lookback_days, "std"
+        ).fillna(0.0)
+        category_delta = frame[column] - category_rolling_mean
+        safe_category_std = category_rolling_std.replace(0.0, np.nan)
+
+        derived_columns[rolling_mean_column] = category_rolling_mean
+        derived_columns[rolling_std_column] = category_rolling_std
+        derived_columns[delta_column] = category_delta
+        derived_columns[zscore_column] = (category_delta / safe_category_std).fillna(
+            0.0
+        )
+
+    # Track time-bucket baselines so explanations can describe shifts in incident timing
+    for column in TIME_BUCKET_COLUMNS:
+        grouped_bucket = frame.groupby("grid_id")[column]
+        prior_bucket = grouped_bucket.shift(1)
+        rolling_mean_column = f"{column}_rolling_mean_{window_suffix}"
+        rolling_std_column = f"{column}_rolling_std_{window_suffix}"
+        delta_column = f"{column}_delta_from_mean"
+        zscore_column = f"{column}_zscore_{window_suffix}"
+
+        bucket_rolling_mean = grouped_rolling(
+            prior_bucket, frame["grid_id"], lookback_days, "mean"
+        ).fillna(0.0)
+        bucket_rolling_std = grouped_rolling(
+            prior_bucket, frame["grid_id"], lookback_days, "std"
+        ).fillna(0.0)
+        bucket_delta = frame[column] - bucket_rolling_mean
+        safe_bucket_std = bucket_rolling_std.replace(0.0, np.nan)
+
+        derived_columns[rolling_mean_column] = bucket_rolling_mean
+        derived_columns[rolling_std_column] = bucket_rolling_std
+        derived_columns[delta_column] = bucket_delta
+        derived_columns[zscore_column] = (bucket_delta / safe_bucket_std).fillna(0.0)
 
     # Convert raw counts into per-day composition features
     total_nonzero = frame["total_crimes"].replace(0.0, np.nan)
     for column in category_columns:
-        frame[f"{column}_share"] = (frame[column] / total_nonzero).fillna(0.0)
+        derived_columns[f"{column}_share"] = (frame[column] / total_nonzero).fillna(0.0)
 
     bucket_total = frame[TIME_BUCKET_COLUMNS].sum(axis=1).replace(0.0, np.nan)
     for column in TIME_BUCKET_COLUMNS:
-        frame[f"{column}_share"] = (frame[column] / bucket_total).fillna(0.0)
+        derived_columns[f"{column}_share"] = (frame[column] / bucket_total).fillna(0.0)
 
     # Keep fallback usage as explicit signal instead of hiding imputations
-    frame["reported_date_fallback_rate"] = (
+    derived_columns["reported_date_fallback_rate"] = (
         frame["used_reported_date_fallback_count"] / total_nonzero
     ).fillna(0.0)
-    frame["reported_hour_fallback_rate"] = (
+    derived_columns["reported_hour_fallback_rate"] = (
         frame["used_reported_hour_fallback_count"] / total_nonzero
     ).fillna(0.0)
 
     # Add cyclical calendar context for weekly patterns
-    frame["day_of_week"] = frame["date"].dt.dayofweek.astype(float)
-    frame["day_of_week_sin"] = np.sin(2 * np.pi * frame["day_of_week"] / 7.0)
-    frame["day_of_week_cos"] = np.cos(2 * np.pi * frame["day_of_week"] / 7.0)
-    frame["is_weekend"] = frame["day_of_week"].isin([5.0, 6.0]).astype(float)
+    day_of_week = frame["date"].dt.dayofweek.astype(float)
+    derived_columns["day_of_week"] = day_of_week
+    derived_columns["day_of_week_sin"] = pd.Series(
+        np.sin(2 * np.pi * day_of_week / 7.0),
+        index=frame.index,
+    )
+    derived_columns["day_of_week_cos"] = pd.Series(
+        np.cos(2 * np.pi * day_of_week / 7.0),
+        index=frame.index,
+    )
+    derived_columns["is_weekend"] = day_of_week.isin([5.0, 6.0]).astype(float)
+
+    frame = pd.concat(
+        [frame, pd.DataFrame(derived_columns, index=frame.index)],
+        axis=1,
+    )
 
     # Return only the model-facing columns from the wider working frame
     feature_columns = [
@@ -213,6 +274,16 @@ def compute_features(
         "is_weekend",
         "reported_date_fallback_rate",
         "reported_hour_fallback_rate",
+        *category_columns,
+        *TIME_BUCKET_COLUMNS,
+        *[f"{column}_rolling_mean_{window_suffix}" for column in category_columns],
+        *[f"{column}_rolling_std_{window_suffix}" for column in category_columns],
+        *[f"{column}_delta_from_mean" for column in category_columns],
+        *[f"{column}_zscore_{window_suffix}" for column in category_columns],
+        *[f"{column}_rolling_mean_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
+        *[f"{column}_rolling_std_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
+        *[f"{column}_delta_from_mean" for column in TIME_BUCKET_COLUMNS],
+        *[f"{column}_zscore_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
         *[f"{column}_share" for column in category_columns],
         *[f"{column}_share" for column in TIME_BUCKET_COLUMNS],
     ]

@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from app import training
+from app.model.pipelines import training
 
 
 def test_resolve_model_artifact_path_uses_environment(

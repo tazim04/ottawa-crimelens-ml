@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app import feature_builder
+from app.features import feature_builder
 from app.features.aggregation import compute_features, prepare_daily_frame
 
 
@@ -159,7 +159,17 @@ def test_compute_features_builds_rolling_and_share_features(
     assert g1_day3["history_days"] == 1
     assert g1_day3["rolling_mean_2d"] == pytest.approx(1.5)
     assert g1_day3["rolling_sum_2d"] == pytest.approx(3.0)
+    assert g1_day3["category_assaults"] == pytest.approx(1.0)
+    assert g1_day3["category_assaults_rolling_mean_2d"] == pytest.approx(1.0)
+    assert g1_day3["category_assaults_delta_from_mean"] == pytest.approx(0.0)
     assert g1_day3["category_assaults_share"] == pytest.approx(0.25)
+    assert g1_day3["category_theft_5000_and_under"] == pytest.approx(2.0)
+    assert g1_day3["category_theft_5000_and_under_rolling_mean_2d"] == pytest.approx(
+        0.5
+    )
+    assert g1_day3["category_theft_5000_and_under_delta_from_mean"] == pytest.approx(
+        1.5
+    )
     assert g1_day3["category_theft_5000_and_under_share"] == pytest.approx(0.5)
     assert g1_day3["category_robbery_share"] == pytest.approx(0.25)
     assert g1_day3["morning_crimes_share"] == pytest.approx(0.5)
@@ -189,6 +199,8 @@ def test_compute_features_handles_zero_total_crimes_without_nan(
         (features["grid_id"] == "g1") & (features["date"] == pd.Timestamp("2026-01-02"))
     ].iloc[0]
     assert g1_day2["total_crimes"] == 0.0
+    assert g1_day2["category_assaults"] == 0.0
+    assert g1_day2["category_assaults_rolling_mean_2d"] == pytest.approx(2.0)
     assert g1_day2["category_assaults_share"] == 0.0
     assert g1_day2["category_theft_5000_and_under_share"] == 0.0
     assert g1_day2["unknown_hour_crimes_share"] == 0.0

@@ -4,7 +4,7 @@ import shutil
 import pandas as pd
 import pytest
 
-from app.model import (
+from app.model.model import (
     DEFAULT_MODEL_VERSION,
     ModelArtifact,
     infer_feature_columns,

@@ -11,3 +11,5 @@ DB_PASSWORD = os.getenv("NEON_DB_PASSWORD")
 DATABASE_URL = (
     f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}?sslmode=require"
 )
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
