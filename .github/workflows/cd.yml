@@ -57,7 +57,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition crimelens-ml-scoring \
+            --task-definition crimelens-ml \
             --query taskDefinition \
             > task-def.json
 
