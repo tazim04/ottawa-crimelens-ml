@@ -10,6 +10,7 @@ def test_main_allows_model_artifact_path_to_fall_back_to_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that the scoring CLI does not require the model path flag when env/default fallback is available."""
+
     class _ParserStub:
         def parse_args(self) -> argparse.Namespace:
             return parsed_args
