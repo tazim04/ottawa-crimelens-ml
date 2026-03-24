@@ -1,0 +1,84 @@
+name: Deploy on Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Run tests
+        run: |
+          pytest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ca-central-1
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        run: docker build -t crimelens-ml-scoring .
+
+      - name: Tag & Push Docker image
+        run: |
+          IMAGE=502867509200.dkr.ecr.ca-central-1.amazonaws.com/crimelens-ml-scoring
+          TAG=${GITHUB_REF_NAME}
+          docker tag crimelens-ml-scoring:latest $IMAGE:$TAG
+          docker push $IMAGE:$TAG
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition crimelens-ml-scoring \
+            --query taskDefinition \
+            > task-def.json
+
+      - name: Inject new image into task definition
+        run: |
+          IMAGE=502867509200.dkr.ecr.ca-central-1.amazonaws.com/crimelens/ml:${GITHUB_REF_NAME}
+
+          jq --arg IMAGE "$IMAGE" \
+            '.containerDefinitions[0].image = $IMAGE' \
+            task-def.json > new-task-def.json
+
+      - name: Clean task definition JSON
+        run: |
+          jq 'del(
+            .taskDefinitionArn,
+            .revision,
+            .status,
+            .requiresAttributes,
+            .compatibilities,
+            .registeredAt,
+            .registeredBy
+          )' new-task-def.json > final-task-def.json
+
+      - name: Register new task definition
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://final-task-def.json
