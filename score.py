@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--persist-results",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help="Persist scored rows to Postgres. Use --no-persist-results to disable.",
     )
     parser.add_argument(
@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--if-exists",
-        default="replace",
+        default="delete_rows",
         choices=["fail", "replace", "append", "delete_rows"],
         help="Behavior to use if the destination table already exists.",
     )
@@ -78,17 +78,20 @@ def main() -> int:
         "if_exists": args.if_exists,
     }
 
-    scored_results = run_scoring_pipeline(
-        **pipeline_kwargs,
-    )
+    # Run the scoring pipeline and handle any exceptions that occur during execution
+    try:
+        scored_results = run_scoring_pipeline(**pipeline_kwargs)
+    except Exception as e:
+        logger.exception("Error occurred while running scoring pipeline: %s", e)
+        return 1
 
     logger.info("Scored %s rows", len(scored_results))
     if scored_results.empty:
         logger.info("No scoring rows were produced for the requested date")
         return 0
 
-    # Print a preview of the scored results, including metadata and anomaly scores
-    logger.info(
+    logger.info("Scored %s rows", len(scored_results))
+    logger.debug(
         "Scored results preview:\n%s",
         scored_results.head(DEFAULT_PREVIEW_ROWS).to_string(index=False),
     )

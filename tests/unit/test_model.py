@@ -160,6 +160,14 @@ def test_save_and_load_model_artifact_round_trip(
     shutil.rmtree(output_dir)
 
 
+def test_load_model_artifact_raises_for_missing_file() -> None:
+    """Test that loading fails with a clear error when the artifact file is missing."""
+    missing_path = Path("tests/.artifacts/missing_model.joblib")
+
+    with pytest.raises(FileNotFoundError, match="Model artifact not found"):
+        load_model_artifact(missing_path)
+
+
 def test_score_feature_frame_returns_scores_with_metadata(
     sample_feature_frame: pd.DataFrame,
 ) -> None:

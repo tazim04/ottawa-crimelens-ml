@@ -203,7 +203,14 @@ def load_model_artifact(input_path: str | Path) -> ModelArtifact:
     """
     Load a persisted model artifact from disk.
     """
-    payload = joblib.load(Path(input_path))
+    resolved_path = Path(input_path)
+    if not resolved_path.exists():
+        raise FileNotFoundError(
+            f"Model artifact not found at '{resolved_path}'. "
+            "Train a model first or provide a valid --model-artifact-path / MODEL_ARTIFACT_PATH."
+        )
+
+    payload = joblib.load(resolved_path)
     return ModelArtifact(**payload)
 
 
