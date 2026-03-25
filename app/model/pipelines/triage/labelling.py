@@ -143,7 +143,7 @@ def _build_triage_explanation(
     is_close_to_baseline = abs(count_zscore) < 1.0 and abs(count_delta) <= max(
         1.0, rolling_mean * 0.25
     )
-    
+
     # List holding multi-part explanation components, which will be joined together at the end. Each part should be a complete sentence or clause.
     parts: list[str] = []
 
