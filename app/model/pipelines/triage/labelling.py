@@ -132,8 +132,8 @@ def _build_triage_explanation(
     """Summarize the meaningful observable signals for one scored grid/day row."""
 
     triage_label = str(row.get("triage_label", "unknown")).lower()
-    anomaly_score = float(row.get("anomaly_score", 0.0))
-    triage_percentile = float(row.get("triage_percentile", 0.0))
+    # anomaly_score = float(row.get("anomaly_score", 0.0))
+    # triage_percentile = float(row.get("triage_percentile", 0.0))
     total_crimes = float(row.get("total_crimes", 0.0))
     rolling_mean = float(row.get(f"rolling_mean_{window_suffix}", 0.0))
     count_delta = float(row.get("count_delta_from_mean", 0.0))
@@ -143,15 +143,18 @@ def _build_triage_explanation(
     is_close_to_baseline = abs(count_zscore) < 1.0 and abs(count_delta) <= max(
         1.0, rolling_mean * 0.25
     )
+    
+    # List holding multi-part explanation components, which will be joined together at the end. Each part should be a complete sentence or clause.
+    parts: list[str] = []
 
     # Percentile
-    percentile_as_rank = max(1, int(round(triage_percentile * 100)))
-    parts = [
-        (
-            f"{triage_label.capitalize()} triage: anomaly score {anomaly_score:.3f}. "
-            f"This is higher than about {percentile_as_rank}% of scored locations."
-        )
-    ]
+    # percentile_as_rank = max(1, int(round(triage_percentile * 100)))
+    # parts = [
+    #     (
+    #         f"{triage_label.capitalize()} triage: anomaly score {anomaly_score:.3f}. "
+    #         f"This is higher than about {percentile_as_rank}% of scored locations."
+    #     )
+    # ]
 
     # Crime volume delta
     if total_crimes or rolling_mean:
