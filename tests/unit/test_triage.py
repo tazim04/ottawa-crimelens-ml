@@ -76,9 +76,11 @@ def test_add_triage_explanations_summarizes_feature_signals() -> None:
         in explanation
     )
     assert "Overall crime volume is far above usual for this area." in explanation
-    assert "Assaults was 5 compared with the usual 1.5, a big increase." in explanation
     assert (
-        "Evening incidents were 6 compared with the usual 2.0, a clear increase."
+        "Assaults was 5 compared with the usual 1.5, a sharp increase." in explanation
+    )
+    assert (
+        "Evening incidents were 6 compared with the usual 2.0, a sharp increase."
         in explanation
     )
 
@@ -130,7 +132,71 @@ def test_add_triage_explanations_surfaces_large_drop_in_activity() -> None:
         in explanation
     )
     assert "Overall crime volume is far below usual for this area." in explanation
-    assert "Assaults was 0 compared with the usual 2.0, a clear drop." in explanation
+    assert "Assaults was 0 compared with the usual 2.0, a sharp drop." in explanation
+
+
+def test_add_triage_explanations_uses_proportional_drop_language_for_high_triage() -> (
+    None
+):
+    """Test that high-triage rows with a full drop do not understate the shift."""
+    triaged_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "anomaly_score": 0.662,
+                "triage_percentile": 1.0,
+                "triage_label": "high",
+            }
+        ]
+    )
+    feature_frame = pd.DataFrame(
+        [
+            {
+                "grid_id": "g1",
+                "date": date(2026, 3, 13),
+                "total_crimes": 0.0,
+                "rolling_mean_30d": 6.2,
+                "count_delta_from_mean": -6.2,
+                "count_zscore_30d": -1.1,
+                "reported_date_fallback_rate": 0.0,
+                "reported_hour_fallback_rate": 0.0,
+                "category_theft_5000_and_under": 0.0,
+                "category_theft_5000_and_under_rolling_mean_30d": 4.2,
+                "category_theft_5000_and_under_delta_from_mean": -4.2,
+                "category_theft_5000_and_under_zscore_30d": -1.0,
+                "afternoon_crimes": 0.0,
+                "afternoon_crimes_rolling_mean_30d": 3.2,
+                "afternoon_crimes_delta_from_mean": -3.2,
+                "afternoon_crimes_zscore_30d": -1.0,
+                "evening_crimes": 0.0,
+                "evening_crimes_rolling_mean_30d": 1.7,
+                "evening_crimes_delta_from_mean": -1.7,
+                "evening_crimes_zscore_30d": -0.9,
+            }
+        ]
+    )
+
+    explained_frame = labelling.add_triage_explanations(
+        triaged_frame,
+        feature_frame,
+        lookback_days=30,
+    )
+
+    explanation = explained_frame.loc[0, "triage_explanation"]
+    assert "Overall crime volume is far below usual for this area." in explanation
+    assert (
+        "Theft $5000 and under was 0 compared with the usual 4.2, a sharp drop."
+        in explanation
+    )
+    assert (
+        "Afternoon incidents were 0 compared with the usual 3.2, a sharp drop."
+        in explanation
+    )
+    assert (
+        "Evening incidents were 0 compared with the usual 1.7, a clear drop."
+        in explanation
+    )
 
 
 def test_add_triage_explanations_uses_close_to_baseline_wording_for_low_rows() -> None:

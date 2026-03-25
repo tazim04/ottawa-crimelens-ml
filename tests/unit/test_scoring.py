@@ -123,11 +123,11 @@ def test_score_daily_features_uses_builder_and_model_layers(
         in result.loc[1, "triage_explanation"]
     )
     assert (
-        "Assaults was 5 compared with the usual 1.5, a big increase."
+        "Assaults was 5 compared with the usual 1.5, a sharp increase."
         in result.loc[1, "triage_explanation"]
     )
     assert (
-        "Evening incidents were 6 compared with the usual 2.0, a clear increase."
+        "Evening incidents were 6 compared with the usual 2.0, a sharp increase."
         in result.loc[1, "triage_explanation"]
     )
 

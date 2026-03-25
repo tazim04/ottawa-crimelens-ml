@@ -163,10 +163,15 @@ def _build_triage_explanation(
         )
 
     # Overall signal strength
-    if abs(count_zscore) >= 1.5 or abs(count_delta) >= max(2.0, rolling_mean * 0.5):
+    overall_shift_level = _shift_strength_level(
+        count_zscore,
+        count_delta,
+        rolling_mean,
+    )
+    if overall_shift_level > 0:
         direction_text = "above" if count_delta > 0 else "below"
         parts.append(
-            f"Overall crime volume is {_describe_shift_strength(count_zscore)} {direction_text} usual for this area."
+            f"Overall crime volume is {_describe_shift_strength(overall_shift_level)} {direction_text} usual for this area."
         )
     elif abs(count_delta) <= 1 and triage_label == "low":
         parts.append("Activity is close to the usual level for this area.")
@@ -182,7 +187,7 @@ def _build_triage_explanation(
         parts.append(
             (
                 f"{category_label.capitalize()} was {category_count:.0f} compared with the usual "
-                f"{category_mean:.1f}, a {_describe_directional_shift(direction, category_zscore)}."
+                f"{category_mean:.1f}, a {_describe_directional_shift(direction, category_zscore, category_count - category_mean, category_mean)}."
             )
         )
 
@@ -196,7 +201,7 @@ def _build_triage_explanation(
         parts.append(
             (
                 f"{bucket_label.capitalize()} incidents were {bucket_count:.0f} compared with the usual "
-                f"{bucket_mean:.1f}, a {_describe_directional_shift(direction, bucket_zscore)}."
+                f"{bucket_mean:.1f}, a {_describe_directional_shift(direction, bucket_zscore, bucket_count - bucket_mean, bucket_mean)}."
             )
         )
 
@@ -255,22 +260,60 @@ def _format_delta(delta: float) -> str:
     return "right in line with the recent average"
 
 
-def _describe_shift_strength(zscore: float) -> str:
-    """Translate statistical distance into plainer severity wording."""
-    strength = abs(zscore)
-    if strength >= 2.5:
+def _describe_shift_strength(level: int) -> str:
+    """Translate a severity bucket into plainer overall wording."""
+    if level >= 2:
         return "far"
-    if strength >= 1.5:
-        return "clearly"
+    if level == 1:
+        return "well"
     return "slightly"
 
 
-def _describe_directional_shift(direction: str, zscore: float) -> str:
-    """Describe an up/down shift without exposing statistical jargon."""
+def _relative_change(delta: float, baseline: float) -> float:
+    """Return the proportional change versus baseline while handling zero baselines."""
+    if baseline <= 0:
+        return float("inf") if abs(delta) > 0 else 0.0
+    return abs(delta) / baseline
+
+
+def _shift_strength_level(zscore: float, delta: float, baseline: float) -> int:
+    """
+    Blend statistical distance with absolute and proportional change.
+
+    This prevents complete drop-to-zero or spike-from-baseline explanations from
+    being understated in noisier areas, while staying conservative for tiny
+    baselines.
+    """
     strength = abs(zscore)
-    if strength >= 2.5:
-        modifier = "big"
-    elif strength >= 1.5:
+    abs_delta = abs(delta)
+    relative_change = _relative_change(delta, baseline)
+
+    if (
+        strength >= 2.5
+        or abs_delta >= max(5.0, baseline)
+        or (baseline >= 2.0 and relative_change >= 0.9 and abs_delta >= 2.0)
+    ):
+        return 2
+    if (
+        strength >= 1.5
+        or abs_delta >= max(3.0, baseline * 0.75)
+        or (baseline >= 1.5 and relative_change >= 0.6 and abs_delta >= 1.5)
+    ):
+        return 1
+    return 0
+
+
+def _describe_directional_shift(
+    direction: str,
+    zscore: float,
+    delta: float,
+    baseline: float,
+) -> str:
+    """Describe an up/down shift without exposing statistical jargon."""
+    level = _shift_strength_level(zscore, delta, baseline)
+    if level >= 2:
+        modifier = "sharp"
+    elif level == 1:
         modifier = "clear"
     else:
         modifier = "small"
