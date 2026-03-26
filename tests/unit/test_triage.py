@@ -279,7 +279,7 @@ def test_add_triage_explanations_keeps_high_triage_rows_out_of_low_baseline_word
     explanation = explained_frame.loc[0, "triage_explanation"]
     assert explanation == (
         "Observed 0 crimes versus a recent average of 1.3, which is 1.3 fewer than usual. "
-        "There were mild changes, but no single clear driver stood out."
+        "This location scored high relative to other areas today, but the anomaly appears to come from several small shifts rather than one large driver."
     )
 
 
@@ -320,5 +320,5 @@ def test_add_triage_explanations_keeps_tiny_baseline_high_triage_rows_minimal() 
     explanation = explained_frame.loc[0, "triage_explanation"]
     assert explanation == (
         "Observed 0 crimes versus a recent average of 0.6, which is 0.6 fewer than usual. "
-        "There were mild changes, but no single clear driver stood out."
+        "This location scored high relative to other areas today, but the anomaly appears to come from several small shifts rather than one large driver."
     )

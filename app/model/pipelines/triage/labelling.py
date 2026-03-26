@@ -212,6 +212,10 @@ def _build_triage_explanation(
     if len(parts) == 1:
         if triage_label == "low" and is_close_to_baseline:
             parts.append("No unusual activity.")
+        elif triage_label == "high":
+            parts.append(
+                "This location scored high relative to other areas today, but the anomaly appears to come from several small shifts rather than one large driver."
+            )
         else:
             parts.append(
                 "There were mild changes, but no single clear driver stood out."
