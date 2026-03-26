@@ -4,6 +4,8 @@ pandas
 scikit-learn
 numpy
 joblib
+matplotlib
+seaborn
 ruff
 pytest
 dotenv
