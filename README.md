@@ -33,7 +33,7 @@ This script should:
 Run with:
 
 ```bash
-python -m train --start-date 2020-01-01 --end-date 2026-02-28 --model-version crime-anomaly-v1
+python -m train --start-date 2020-01-01 --end-date 2026-02-28 --model-version crime-anomaly-v1 --min-history-days 3
 ```
 
 ### `score.py`
