@@ -23,6 +23,7 @@ DEFAULT_OUTPUT_DIR = Path("experiments/output/alignment")
 ###### Measure the alignment between anomaly scores and baseline feature deviations. This helps verify that the model is learning meaningful patterns. ######
 # example: high z-score -> high anomaly score -> high triage label, while low z-score -> low anomaly score -> low triage label
 
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the alignment experiment."""
     parser = argparse.ArgumentParser(
@@ -71,10 +72,14 @@ def correlation_summary(frame: pd.DataFrame) -> dict[str, float]:
     """Compute simple alignment statistics for the evaluation frame."""
     return {
         "pearson_score_vs_abs_count_delta": float(
-            frame["anomaly_score"].corr(frame["abs_count_delta_from_mean"], method="pearson")
+            frame["anomaly_score"].corr(
+                frame["abs_count_delta_from_mean"], method="pearson"
+            )
         ),
         "spearman_score_vs_abs_count_delta": float(
-            frame["anomaly_score"].corr(frame["abs_count_delta_from_mean"], method="spearman")
+            frame["anomaly_score"].corr(
+                frame["abs_count_delta_from_mean"], method="spearman"
+            )
         ),
         "pearson_score_vs_abs_count_zscore": float(
             frame["anomaly_score"].corr(frame["abs_count_zscore"], method="pearson")
@@ -164,7 +169,9 @@ def main() -> int:
     )
 
     if evaluation_frame.empty:
-        raise ValueError("No evaluation rows were produced for the requested date range")
+        raise ValueError(
+            "No evaluation rows were produced for the requested date range"
+        )
 
     metrics = correlation_summary(evaluation_frame)
     metrics["row_count"] = int(len(evaluation_frame))

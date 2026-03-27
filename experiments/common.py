@@ -11,6 +11,7 @@ from app.model.pipelines.triage.labelling import assign_triage_labels
 
 ##### Common utilities for experiments, such as building evaluation frames and selecting top quantiles. #####
 
+
 def window_suffix(lookback_days: int) -> str:
     """Return the feature-name suffix used for rolling-window columns."""
     return f"{lookback_days}d"
