@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -49,6 +50,30 @@ def test_parse_contamination_normalizes_cli_inputs() -> None:
     assert training.parse_contamination(0.2) == 0.2
 
 
+def test_resolve_training_end_date_defaults_to_today(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that omitted training end dates fall back to today's local date."""
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            return cls(2026, 3, 29, 8, 30)
+
+    monkeypatch.setattr(training, "datetime", FixedDateTime)
+
+    assert training.resolve_training_end_date() == "2026-03-29"
+
+
+def test_resolve_training_end_date_normalizes_supported_inputs() -> None:
+    """Test that supported end-date inputs normalize to ISO date strings."""
+    assert training.resolve_training_end_date("2026-03-13") == "2026-03-13"
+    assert training.resolve_training_end_date(date(2026, 3, 13)) == "2026-03-13"
+    assert (
+        training.resolve_training_end_date(datetime(2026, 3, 13, 9, 30)) == "2026-03-13"
+    )
+
+
 def test_run_training_pipeline_builds_trains_and_saves(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -62,11 +87,12 @@ def test_run_training_pipeline_builds_trains_and_saves(
         ]
     )
     artifact_sentinel = object()
+    captured_dataset_kwargs: dict[str, object] = {}
 
     monkeypatch.setattr(
         training,
         "build_training_dataset",
-        lambda **kwargs: training_frame,
+        lambda **kwargs: captured_dataset_kwargs.update(kwargs) or training_frame,
     )
     monkeypatch.setattr(
         training,
@@ -91,6 +117,48 @@ def test_run_training_pipeline_builds_trains_and_saves(
 
     assert artifact is artifact_sentinel
     assert saved_path == training.DEFAULT_MODEL_ARTIFACT_PATH
+    assert captured_dataset_kwargs["end_date"] == "2026-01-31"
+
+
+def test_run_training_pipeline_defaults_end_date_to_today(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that training uses today's date when the end date is omitted."""
+    monkeypatch.delenv("MODEL_ARTIFACT_PATH", raising=False)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            return cls(2026, 3, 29, 8, 30)
+
+    training_frame = pd.DataFrame(
+        [
+            {"grid_id": "g1", "date": "2026-01-01", "total_crimes": 3.0},
+            {"grid_id": "g2", "date": "2026-01-01", "total_crimes": 6.0},
+        ]
+    )
+    captured_dataset_kwargs: dict[str, object] = {}
+
+    monkeypatch.setattr(training, "datetime", FixedDateTime)
+    monkeypatch.setattr(
+        training,
+        "build_training_dataset",
+        lambda **kwargs: captured_dataset_kwargs.update(kwargs) or training_frame,
+    )
+    monkeypatch.setattr(
+        training, "train_isolation_forest", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        training,
+        "save_model_artifact",
+        lambda artifact, output_path: Path(output_path),
+    )
+
+    training.run_training_pipeline(
+        start_date="2026-01-01",
+    )
+
+    assert captured_dataset_kwargs["end_date"] == "2026-03-29"
 
 
 def test_run_training_pipeline_uses_resolved_s3_output_path(

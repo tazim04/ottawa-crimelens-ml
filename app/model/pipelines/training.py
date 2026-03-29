@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 import logging
 from pathlib import Path
 
@@ -32,7 +33,7 @@ DEFAULT_MODEL_ARTIFACT_PATH = Path("artifacts/crime_model.joblib")
 def run_training_pipeline(
     *,
     start_date: str,
-    end_date: str,
+    end_date: str | date | datetime | None = None,
     lookback_days: int | None = None,
     min_history_days: int | None = None,
     model_version: str = DEFAULT_MODEL_VERSION,
@@ -44,9 +45,10 @@ def run_training_pipeline(
     Build training features, train the model artifact, and persist it to disk.
     """
     logger.info("Building training dataset")
+    resolved_end_date = resolve_training_end_date(end_date)
     training_features = build_training_dataset(
         start_date=start_date,
-        end_date=end_date,
+        end_date=resolved_end_date,
         lookback_days=lookback_days,
         min_history_days=min_history_days,
     )
@@ -87,6 +89,21 @@ def resolve_model_artifact_path() -> ArtifactLocation:
     )
 
 
+def resolve_training_end_date(
+    end_date: str | date | datetime | None = None,
+) -> str:
+    """
+    Resolve the training end date, defaulting to today's local date when omitted.
+    """
+    if end_date is None:
+        return datetime.now().date().isoformat()
+    if isinstance(end_date, datetime):
+        return end_date.date().isoformat()
+    if isinstance(end_date, date):
+        return end_date.isoformat()
+    return end_date
+
+
 def parse_contamination(value: str | float = "auto") -> str | float:
     """
     Normalize contamination input to the type expected by the model layer.
@@ -100,7 +117,7 @@ def parse_contamination(value: str | float = "auto") -> str | float:
 
 def build_training_dataset(
     start_date: str,
-    end_date: str,
+    end_date: str | date | datetime,
     *,
     lookback_days: int | None = None,
     min_history_days: int | None = None,

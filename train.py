@@ -28,8 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--end-date",
-        required=True,
-        help="Training range end date in YYYY-MM-DD format.",
+        help="Training range end date in YYYY-MM-DD format. Defaults to today when omitted.",
     )
     parser.add_argument(
         "--lookback-days",
