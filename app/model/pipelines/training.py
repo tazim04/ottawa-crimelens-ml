@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -18,6 +17,7 @@ from app.features.constants import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_MIN_HISTORY_DAYS,
 )
+from app.model.storage import ArtifactLocation, resolve_artifact_location
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,7 @@ def run_training_pipeline(
     contamination: str | float = "auto",
     n_estimators: int = 200,
     random_state: int = 42,
-    output_path: str | Path | None = None,
-) -> tuple[ModelArtifact, Path]:
+) -> tuple[ModelArtifact, ArtifactLocation]:
     """
     Build training features, train the model artifact, and persist it to disk.
     """
@@ -68,7 +67,7 @@ def run_training_pipeline(
         n_estimators=n_estimators,
         random_state=random_state,
     )
-    saved_path = save_model_artifact(artifact, resolve_model_artifact_path(output_path))
+    saved_path = save_model_artifact(artifact, resolve_model_artifact_path())
 
     logger.info("Model artifact trained and saved to %s", saved_path)
 
@@ -78,14 +77,14 @@ def run_training_pipeline(
 ##### Helper functions for the training workflow #####
 
 
-def resolve_model_artifact_path(output_path: str | Path | None = None) -> Path:
+def resolve_model_artifact_path() -> ArtifactLocation:
     """
-    Resolve the training artifact output path from args or environment.
+    Resolve the training artifact output path from environment or default.
     """
-    candidate = output_path or os.getenv(
-        "MODEL_ARTIFACT_PATH", str(DEFAULT_MODEL_ARTIFACT_PATH)
+    return resolve_artifact_location(
+        None,
+        default_location=DEFAULT_MODEL_ARTIFACT_PATH,
     )
-    return Path(candidate)
 
 
 def parse_contamination(value: str | float = "auto") -> str | float:

@@ -25,6 +25,29 @@ def test_resolve_model_artifact_path_uses_environment(
     assert scoring.resolve_model_artifact_path() == Path("models/from-env.joblib")
 
 
+def test_resolve_model_artifact_path_uses_default_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that scoring falls back to the code default when no override is provided."""
+    monkeypatch.delenv("MODEL_ARTIFACT_PATH", raising=False)
+
+    assert scoring.resolve_model_artifact_path() == scoring.DEFAULT_MODEL_ARTIFACT_PATH
+
+
+def test_resolve_model_artifact_path_keeps_s3_uri(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that scoring preserves S3 model artifact URIs."""
+    monkeypatch.setenv(
+        "MODEL_ARTIFACT_PATH", "s3://crime-models/models/from-env.joblib"
+    )
+
+    assert (
+        scoring.resolve_model_artifact_path()
+        == "s3://crime-models/models/from-env.joblib"
+    )
+
+
 def test_score_daily_features_uses_builder_and_model_layers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -108,7 +131,6 @@ def test_score_daily_features_uses_builder_and_model_layers(
 
     result = scoring.score_daily_features(
         target_date="2026-03-13",
-        model_artifact_path="models/current.joblib",
         medium_percentile=0.5,
         high_percentile=0.8,
     )
@@ -130,6 +152,52 @@ def test_score_daily_features_uses_builder_and_model_layers(
         "Evening incidents were 6 compared with the usual 2.0, a sharp increase."
         in result.loc[1, "triage_explanation"]
     )
+
+
+def test_score_daily_features_forwards_s3_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that scoring passes the resolved S3 artifact URI through to model loading."""
+    feature_frame = pd.DataFrame(
+        [{"grid_id": "g1", "date": date(2026, 3, 13), "total_crimes": 2.0}]
+    )
+    captured_paths: list[object] = []
+
+    monkeypatch.setenv("MODEL_ARTIFACT_PATH", "s3://crime-models/models/current.joblib")
+    monkeypatch.setattr(
+        scoring, "build_scoring_features", lambda **kwargs: feature_frame
+    )
+    monkeypatch.setattr(
+        scoring,
+        "load_model_artifact",
+        lambda path: captured_paths.append(path) or object(),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "score_feature_frame",
+        lambda features, artifact: pd.DataFrame(
+            [
+                {
+                    "grid_id": "g1",
+                    "date": date(2026, 3, 13),
+                    "anomaly_score": 0.1,
+                    "model_version": "v1",
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(scoring, "assign_triage_labels", lambda frame, **kwargs: frame)
+    monkeypatch.setattr(
+        scoring,
+        "add_triage_explanations",
+        lambda triaged_frame, feature_frame, lookback_days: triaged_frame,
+    )
+
+    scoring.score_daily_features(
+        target_date="2026-03-13",
+    )
+
+    assert captured_paths == ["s3://crime-models/models/current.joblib"]
 
 
 def test_run_scoring_pipeline_persists_results_when_enabled(

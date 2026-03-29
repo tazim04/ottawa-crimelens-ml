@@ -4,10 +4,7 @@ import argparse
 import logging
 
 from app.model.model import DEFAULT_MODEL_VERSION
-from app.model.pipelines.training import (
-    DEFAULT_MODEL_ARTIFACT_PATH,
-    run_training_pipeline,
-)
+from app.model.pipelines.training import run_training_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +63,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=42,
         help="Random seed used for model training.",
     )
-    parser.add_argument(
-        "--output-path",
-        default=str(DEFAULT_MODEL_ARTIFACT_PATH),
-        help="Destination path for the saved model artifact.",
-    )
     return parser
 
 
@@ -92,7 +84,6 @@ def main() -> int:
         contamination=args.contamination,
         n_estimators=args.n_estimators,
         random_state=args.random_state,
-        output_path=args.output_path,
     )
 
     logger.info("Trained model version: %s", artifact.model_version)

@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+from io import BytesIO
 
 import pandas as pd
 import pytest
@@ -13,6 +14,12 @@ from app.model.model import (
     save_model_artifact,
     score_feature_frame,
     train_isolation_forest,
+)
+from app.model.storage import (
+    LocalModelArtifactStorage,
+    S3ModelArtifactStorage,
+    parse_s3_uri,
+    resolve_model_artifact_storage,
 )
 
 
@@ -166,6 +173,68 @@ def test_load_model_artifact_raises_for_missing_file() -> None:
 
     with pytest.raises(FileNotFoundError, match="Model artifact not found"):
         load_model_artifact(missing_path)
+
+
+def test_resolve_model_artifact_storage_selects_backend() -> None:
+    """Test that local paths and S3 URIs resolve to the expected storage backend."""
+    assert isinstance(
+        resolve_model_artifact_storage(Path("artifacts/crime_model.joblib")),
+        LocalModelArtifactStorage,
+    )
+    assert isinstance(
+        resolve_model_artifact_storage("s3://crime-models/current.joblib"),
+        S3ModelArtifactStorage,
+    )
+
+
+def test_parse_s3_uri_rejects_malformed_uri() -> None:
+    """Test that malformed S3 URIs fail with a clear validation error."""
+    with pytest.raises(ValueError, match="Invalid S3 model artifact URI"):
+        parse_s3_uri("s3://crime-models")
+
+
+def test_s3_model_artifact_storage_round_trip(
+    sample_feature_frame: pd.DataFrame,
+) -> None:
+    """Test that S3-backed storage serializes and restores the same artifact payload."""
+    artifact = train_isolation_forest(sample_feature_frame, n_estimators=10)
+
+    class FakeS3Client:
+        def __init__(self) -> None:
+            self.objects: dict[tuple[str, str], bytes] = {}
+
+        def put_object(self, *, Bucket: str, Key: str, Body: bytes) -> None:
+            self.objects[(Bucket, Key)] = Body
+
+        def get_object(self, *, Bucket: str, Key: str) -> dict[str, BytesIO]:
+            payload = self.objects[(Bucket, Key)]
+            return {"Body": BytesIO(payload)}
+
+    storage = S3ModelArtifactStorage(client=FakeS3Client())
+
+    saved_location = storage.save_artifact(
+        artifact,
+        "s3://crime-models/models/crime_model.joblib",
+    )
+    loaded_artifact = storage.load_artifact(saved_location)
+
+    assert saved_location == "s3://crime-models/models/crime_model.joblib"
+    assert loaded_artifact.model_version == artifact.model_version
+    assert loaded_artifact.feature_columns == artifact.feature_columns
+    assert loaded_artifact.training_row_count == artifact.training_row_count
+
+
+def test_s3_model_artifact_storage_raises_for_missing_object() -> None:
+    """Test that missing S3 artifacts surface a clear not-found message."""
+
+    class MissingS3Client:
+        def get_object(self, *, Bucket: str, Key: str) -> dict[str, BytesIO]:
+            raise KeyError((Bucket, Key))
+
+    storage = S3ModelArtifactStorage(client=MissingS3Client())
+
+    with pytest.raises(FileNotFoundError, match="Model artifact not found"):
+        storage.load_artifact("s3://crime-models/models/missing.joblib")
 
 
 def test_score_feature_frame_returns_scores_with_metadata(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
@@ -13,6 +12,7 @@ from app.db import engine
 from app.features.feature_builder import build_daily_features
 from app.features.constants import DEFAULT_LOOKBACK_DAYS
 from app.model.model import load_model_artifact, score_feature_frame
+from app.model.storage import ArtifactLocation, resolve_artifact_location
 
 from app.model.pipelines.triage.labelling import (
     add_triage_explanations,
@@ -41,7 +41,6 @@ ToSqlIfExists = Literal[
 def run_scoring_pipeline(
     target_date: str | date | datetime | None = None,
     *,
-    model_artifact_path: str | Path | None = None,
     lookback_days: int | None = None,
     min_history_days: int | None = None,
     persist_results: bool = True,
@@ -55,7 +54,6 @@ def run_scoring_pipeline(
     resolved_target_date = resolve_scoring_date(target_date)
     scored_frame = score_daily_features(
         target_date=resolved_target_date,
-        model_artifact_path=model_artifact_path,
         lookback_days=lookback_days,
         min_history_days=min_history_days,
         high_percentile=DEFAULT_TRIAGE_HIGH_PERCENTILE,
@@ -102,14 +100,14 @@ def resolve_scoring_date(target_date: str | date | datetime | None = None) -> da
     return date.fromisoformat(target_date)
 
 
-def resolve_model_artifact_path(model_artifact_path: str | Path | None = None) -> Path:
+def resolve_model_artifact_path() -> ArtifactLocation:
     """
-    Resolve the trained model artifact location from args or environment.
+    Resolve the trained model artifact location from environment or default.
     """
-    candidate = model_artifact_path or os.getenv(
-        "MODEL_ARTIFACT_PATH", str(DEFAULT_MODEL_ARTIFACT_PATH)
+    return resolve_artifact_location(
+        None,
+        default_location=DEFAULT_MODEL_ARTIFACT_PATH,
     )
-    return Path(candidate)
 
 
 def build_scoring_features(
@@ -220,7 +218,6 @@ def sql_type_for_series(series: pd.Series) -> str:
 def score_daily_features(
     target_date: str | date | datetime,
     *,
-    model_artifact_path: str | Path | None = None,
     lookback_days: int | None = None,
     min_history_days: int | None = None,
     high_percentile: float = DEFAULT_TRIAGE_HIGH_PERCENTILE,
@@ -247,7 +244,7 @@ def score_daily_features(
             ]
         )
 
-    artifact = load_model_artifact(resolve_model_artifact_path(model_artifact_path))
+    artifact = load_model_artifact(resolve_model_artifact_path())
     scored_frame = score_feature_frame(feature_frame, artifact)
     triaged_frame = assign_triage_labels(
         scored_frame,

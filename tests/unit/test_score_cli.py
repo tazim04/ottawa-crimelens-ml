@@ -9,7 +9,7 @@ import score
 def test_main_allows_model_artifact_path_to_fall_back_to_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that the scoring CLI does not require the model path flag when env/default fallback is available."""
+    """Test that the scoring CLI relies on pipeline env/default artifact resolution."""
 
     class _ParserStub:
         def parse_args(self) -> argparse.Namespace:
@@ -17,7 +17,6 @@ def test_main_allows_model_artifact_path_to_fall_back_to_env(
 
     parsed_args = argparse.Namespace(
         target_date="2026-03-13",
-        model_artifact_path=None,
         lookback_days=None,
         min_history_days=None,
         persist_results=False,
@@ -37,4 +36,12 @@ def test_main_allows_model_artifact_path_to_fall_back_to_env(
     exit_code = score.main()
 
     assert exit_code == 0
-    assert captured_kwargs["model_artifact_path"] is None
+    assert "model_artifact_path" not in captured_kwargs
+    assert captured_kwargs == {
+        "target_date": "2026-03-13",
+        "lookback_days": None,
+        "min_history_days": None,
+        "persist_results": False,
+        "results_table": "crime_anomaly_scores",
+        "if_exists": "delete_rows",
+    }

@@ -13,11 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY score.py .
-COPY artifacts/crime_model.joblib ./artifacts/crime_model.joblib
+COPY train.py .
 
 # Create a non-root user to run the application for better security
 RUN useradd --create-home appuser
 USER appuser
 
-ENTRYPOINT ["python", "score.py"]
-CMD ["--model-artifact-path", "/app/artifacts/crime_model.joblib"]
+ENTRYPOINT ["python"]
+CMD ["score.py"]

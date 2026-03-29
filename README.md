@@ -57,8 +57,15 @@ This script should:
 Run with:
 
 ```bash
-python score.py --target-date 2026-03-13 --model-artifact-path artifacts/crime_model.joblib
+python score.py --min-history-days 3
 ```
+
+`MODEL_ARTIFACT_PATH` supports either a local filesystem path or an `s3://bucket/key.joblib` URI. S3 access uses the standard AWS credential chain from the runtime environment.
+
+Model artifact location is env-only for both training and scoring:
+
+1. Environment variable: `MODEL_ARTIFACT_PATH`
+2. Default when unset: `artifacts/crime_model.joblib`
 
 ## `app/`
 

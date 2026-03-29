@@ -26,10 +26,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Target scoring date in YYYY-MM-DD format. Defaults to today.",
     )
     parser.add_argument(
-        "--model-artifact-path",
-        help="Path to the trained model artifact. Falls back to MODEL_ARTIFACT_PATH when omitted.",
-    )
-    parser.add_argument(
         "--lookback-days",
         type=int,
         help="Rolling lookback window used when building daily features.",
@@ -70,7 +66,6 @@ def main() -> int:
 
     pipeline_kwargs = {
         "target_date": args.target_date,
-        "model_artifact_path": args.model_artifact_path,
         "lookback_days": args.lookback_days,
         "min_history_days": args.min_history_days,
         "persist_results": args.persist_results,

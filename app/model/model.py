@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from app.features.constants import TIME_BUCKET_COLUMNS
-
-import joblib
 import pandas as pd
 from sklearn.ensemble import IsolationForest
+
+from app.model.storage import (
+    ArtifactLocation,
+    resolve_model_artifact_storage,
+)
 
 
 ##### Core ML Layer ######
@@ -188,30 +190,21 @@ def train_isolation_forest(
 
 def save_model_artifact(
     artifact: ModelArtifact,
-    output_path: str | Path,
-) -> Path:
+    output_path: ArtifactLocation,
+) -> ArtifactLocation:
     """
-    Persist a trained model artifact to disk with ``joblib``.
+    Persist a trained model artifact to the configured storage backend.
     """
-    resolved_path = Path(output_path)
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(asdict(artifact), resolved_path)
-    return resolved_path
+    storage = resolve_model_artifact_storage(output_path)
+    return storage.save_artifact(artifact, output_path)
 
 
-def load_model_artifact(input_path: str | Path) -> ModelArtifact:
+def load_model_artifact(input_path: ArtifactLocation) -> ModelArtifact:
     """
-    Load a persisted model artifact from disk.
+    Load a persisted model artifact from the configured storage backend.
     """
-    resolved_path = Path(input_path)
-    if not resolved_path.exists():
-        raise FileNotFoundError(
-            f"Model artifact not found at '{resolved_path}'. "
-            "Train a model first or provide a valid --model-artifact-path / MODEL_ARTIFACT_PATH."
-        )
-
-    payload = joblib.load(resolved_path)
-    return ModelArtifact(**payload)
+    storage = resolve_model_artifact_storage(input_path)
+    return storage.load_artifact(input_path)
 
 
 def score_feature_frame(
