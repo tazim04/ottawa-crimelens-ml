@@ -140,10 +140,15 @@ def prepare_model_matrix(
             f"feature_frame is missing required feature columns: {missing_columns}"
         )
 
-    # Select and coerce the feature columns to a clean numeric matrix, filling non-convertible values with 0.0
-    matrix = feature_frame[resolved_feature_columns].copy()
-    matrix = matrix.apply(pd.to_numeric, errors="coerce").fillna(0.0)
-    return matrix.astype(float)
+    # Build a contiguous float32 matrix for sklearn to reduce training-time memory
+    matrix = feature_frame.loc[:, resolved_feature_columns]
+    if not all(
+        pd.api.types.is_numeric_dtype(matrix[column]) for column in matrix.columns
+    ):
+        matrix = matrix.apply(pd.to_numeric, errors="coerce")
+    if matrix.isnull().values.any():
+        matrix = matrix.fillna(0.0)
+    return matrix.astype("float32")
 
 
 def train_isolation_forest(

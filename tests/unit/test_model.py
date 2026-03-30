@@ -2,6 +2,7 @@ from pathlib import Path
 import shutil
 from io import BytesIO
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -101,11 +102,11 @@ def test_prepare_model_matrix_aligns_and_coerces_numeric_values() -> None:
     )
 
     # Verify that the resulting matrix has the correct columns, data types, and values
-    assert matrix.dtypes.tolist() == [float, float, float]
+    assert matrix.dtypes.tolist() == [np.dtype("float32")] * 3
     assert matrix.iloc[0].to_dict() == {
-        "total_crimes": 3.0,
-        "rolling_mean_30d": 0.0,
-        "reported_hour_fallback_rate": 0.25,
+        "total_crimes": pytest.approx(3.0),
+        "rolling_mean_30d": pytest.approx(0.0),
+        "reported_hour_fallback_rate": pytest.approx(0.25),
     }
 
 

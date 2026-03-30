@@ -134,4 +134,5 @@ def build_training_dataset(
         min_history_days=min_history_days
         if min_history_days is not None
         else DEFAULT_MIN_HISTORY_DAYS,
+        include_explanation_features=False,
     )

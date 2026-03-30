@@ -129,6 +129,8 @@ def compute_features(
     daily_frame: pd.DataFrame,
     category_columns: list[str],
     lookback_days: int,
+    *,
+    include_explanation_features: bool = True,
 ) -> pd.DataFrame:
     """
     Compute rolling, share, fallback-rate, and calendar features.
@@ -153,21 +155,35 @@ def compute_features(
     rolling_std = grouped_rolling(
         prior_total, frame["grid_id"], lookback_days, "std"
     ).fillna(0.0)
-    rolling_min = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "min")
-    rolling_max = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "max")
-    rolling_sum = grouped_rolling(prior_total, frame["grid_id"], lookback_days, "sum")
 
     derived_columns["history_days"] = history_days
     derived_columns[f"rolling_mean_{window_suffix}"] = rolling_mean
     derived_columns[f"rolling_std_{window_suffix}"] = rolling_std
-    derived_columns[f"rolling_min_{window_suffix}"] = rolling_min
-    derived_columns[f"rolling_max_{window_suffix}"] = rolling_max
-    derived_columns[f"rolling_sum_{window_suffix}"] = rolling_sum
+    if include_explanation_features:
+        derived_columns[f"rolling_min_{window_suffix}"] = grouped_rolling(
+            prior_total,
+            frame["grid_id"],
+            lookback_days,
+            "min",
+        )
+        derived_columns[f"rolling_max_{window_suffix}"] = grouped_rolling(
+            prior_total,
+            frame["grid_id"],
+            lookback_days,
+            "max",
+        )
+        derived_columns[f"rolling_sum_{window_suffix}"] = grouped_rolling(
+            prior_total,
+            frame["grid_id"],
+            lookback_days,
+            "sum",
+        )
 
     # Express the current day relative to its recent local baseline
     count_delta = frame["total_crimes"] - rolling_mean.fillna(0.0)
     safe_std = rolling_std.replace(0.0, np.nan)
-    derived_columns["count_delta_from_mean"] = count_delta
+    if include_explanation_features:
+        derived_columns["count_delta_from_mean"] = count_delta
     derived_columns[f"count_zscore_{window_suffix}"] = (count_delta / safe_std).fillna(
         0.0
     )
@@ -191,8 +207,9 @@ def compute_features(
         safe_category_std = category_rolling_std.replace(0.0, np.nan)
 
         derived_columns[rolling_mean_column] = category_rolling_mean
-        derived_columns[rolling_std_column] = category_rolling_std
-        derived_columns[delta_column] = category_delta
+        if include_explanation_features:
+            derived_columns[rolling_std_column] = category_rolling_std
+            derived_columns[delta_column] = category_delta
         derived_columns[zscore_column] = (category_delta / safe_category_std).fillna(
             0.0
         )
@@ -216,8 +233,9 @@ def compute_features(
         safe_bucket_std = bucket_rolling_std.replace(0.0, np.nan)
 
         derived_columns[rolling_mean_column] = bucket_rolling_mean
-        derived_columns[rolling_std_column] = bucket_rolling_std
-        derived_columns[delta_column] = bucket_delta
+        if include_explanation_features:
+            derived_columns[rolling_std_column] = bucket_rolling_std
+            derived_columns[delta_column] = bucket_delta
         derived_columns[zscore_column] = (bucket_delta / safe_bucket_std).fillna(0.0)
 
     # Convert raw counts into per-day composition features
@@ -239,7 +257,6 @@ def compute_features(
 
     # Add cyclical calendar context for weekly patterns
     day_of_week = frame["date"].dt.dayofweek.astype(float)
-    derived_columns["day_of_week"] = day_of_week
     derived_columns["day_of_week_sin"] = pd.Series(
         np.sin(2 * np.pi * day_of_week / 7.0),
         index=frame.index,
@@ -249,6 +266,8 @@ def compute_features(
         index=frame.index,
     )
     derived_columns["is_weekend"] = day_of_week.isin([5.0, 6.0]).astype(float)
+    if include_explanation_features:
+        derived_columns["day_of_week"] = day_of_week
 
     frame = pd.concat(
         [frame, pd.DataFrame(derived_columns, index=frame.index)],
@@ -263,12 +282,7 @@ def compute_features(
         "history_days",
         f"rolling_mean_{window_suffix}",
         f"rolling_std_{window_suffix}",
-        f"rolling_min_{window_suffix}",
-        f"rolling_max_{window_suffix}",
-        f"rolling_sum_{window_suffix}",
-        "count_delta_from_mean",
         f"count_zscore_{window_suffix}",
-        "day_of_week",
         "day_of_week_sin",
         "day_of_week_cos",
         "is_weekend",
@@ -277,16 +291,32 @@ def compute_features(
         *category_columns,
         *TIME_BUCKET_COLUMNS,
         *[f"{column}_rolling_mean_{window_suffix}" for column in category_columns],
-        *[f"{column}_rolling_std_{window_suffix}" for column in category_columns],
-        *[f"{column}_delta_from_mean" for column in category_columns],
         *[f"{column}_zscore_{window_suffix}" for column in category_columns],
         *[f"{column}_rolling_mean_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
-        *[f"{column}_rolling_std_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
-        *[f"{column}_delta_from_mean" for column in TIME_BUCKET_COLUMNS],
         *[f"{column}_zscore_{window_suffix}" for column in TIME_BUCKET_COLUMNS],
         *[f"{column}_share" for column in category_columns],
         *[f"{column}_share" for column in TIME_BUCKET_COLUMNS],
     ]
+    if include_explanation_features:
+        feature_columns.extend(
+            [
+                f"rolling_min_{window_suffix}",
+                f"rolling_max_{window_suffix}",
+                f"rolling_sum_{window_suffix}",
+                "count_delta_from_mean",
+                "day_of_week",
+                *[
+                    f"{column}_rolling_std_{window_suffix}"
+                    for column in category_columns
+                ],
+                *[f"{column}_delta_from_mean" for column in category_columns],
+                *[
+                    f"{column}_rolling_std_{window_suffix}"
+                    for column in TIME_BUCKET_COLUMNS
+                ],
+                *[f"{column}_delta_from_mean" for column in TIME_BUCKET_COLUMNS],
+            ]
+        )
     feature_frame = frame[feature_columns].copy()
     numeric_columns = [
         column for column in feature_columns if column not in {"grid_id", "date"}

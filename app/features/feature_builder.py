@@ -41,6 +41,7 @@ def build_daily_features(
         end_date=resolved_target_date,
         lookback_days=lookback_days,
         min_history_days=min_history_days,
+        include_explanation_features=True,
     )
     return features.reset_index(drop=True)
 
@@ -50,6 +51,8 @@ def build_training_features(
     end_date: str | date | datetime,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     min_history_days: int = DEFAULT_MIN_HISTORY_DAYS,
+    *,
+    include_explanation_features: bool = True,
 ) -> pd.DataFrame:
     """
     Build model-ready features for a historical training range.
@@ -70,6 +73,7 @@ def build_training_features(
         end_date=resolved_end_date,
         lookback_days=lookback_days,
         min_history_days=min_history_days,
+        include_explanation_features=include_explanation_features,
     )
     return features.reset_index(drop=True)
 
@@ -79,6 +83,8 @@ def _build_feature_frame(
     end_date: date,
     lookback_days: int,
     min_history_days: int,
+    *,
+    include_explanation_features: bool = True,
 ) -> pd.DataFrame:
     """
     Fetch raw crimes, aggregate them to daily grid rows, and compute features.
@@ -110,6 +116,7 @@ def _build_feature_frame(
         daily_frame=daily_frame,
         category_columns=category_columns,
         lookback_days=lookback_days,
+        include_explanation_features=include_explanation_features,
     )
 
     # Keep only the requested slice once the rolling features are available.
