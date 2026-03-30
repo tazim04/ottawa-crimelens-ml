@@ -4,8 +4,6 @@ Ottawa-CrimeLens-ML is a machine learning service for training and serving a cri
 
 The trained model identifies anomalies within Ottawa crime spatial grid cells and assigns triage labels (`low`, `medium`, `high`) based on severity. These scores are pushed to the Ottawa CrimeLens database, and stored within the table `crime_anomaly_scores`.
 
-Latest model version: `crime-anomaly-v1.1.4`
-
 ## Project Structure
 
 ```text
