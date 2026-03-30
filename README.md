@@ -16,6 +16,7 @@ ottawa-crimelens-ml/
 |   |-- config.py
 |   `-- db.py
 |-- artifacts/
+|-- experiments/
 |-- tests/
 |-- train.py
 |-- score.py
@@ -70,6 +71,10 @@ Model artifact location is env-only for both training and scoring:
 ## `app/`
 
 This folder contains reusable, modular logic and serves as the core ML domain layer.
+
+## `experiments/`
+
+This folder contains exploratory evaluation scripts and analysis outputs used to validate model behavior, score alignment, and ranking stability. It has its own README with experiment-specific usage details.
 
 ## Formatting and Linting
 
