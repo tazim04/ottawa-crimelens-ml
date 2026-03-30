@@ -27,29 +27,29 @@ ottawa-crimelens-ml/
 
 ### `train.py`
 
-This file acts as the offline training service that runs locally. It trains the model used by the scoring portion of the ML service.
+This file acts as the entrypoint to the training service. It is automated on AWS and runs on a weekly cron schedule to retrain the model used by the scoring portion of the ML service.
 
 This script should:
 
 1. Build historical features
 2. Train the model
-3. Save the model artifact
+3. Save and push the model artifact to S3 (or locally if specified)
 4. Optionally log metrics
 
 Run with:
 
 ```bash
-python -m train --start-date 2020-01-01 --end-date 2026-02-28 --model-version crime-anomaly-v1 --min-history-days 3
+python -m train --start-date 2022-01-01 --model-version crime-anomaly-v1 --min-history-days 3
 ```
 
 ### `score.py`
 
-This file contains the daily inference workflow that acts as the production scoring job. It is intended to be deployed to AWS, such as ECS or Step Functions, and run daily.
+This file contains the daily inference workflow that acts as the production scoring job. It is deployed on AWS and pulls the latest trained `.joblib` model artifact from S3 (or locally) during scoring.
 
 This script should:
 
 1. Build daily features
-2. Load the trained model
+2. Pull and load the trained model artifact
 3. Compute scores
 4. Assign triage labels
 5. Persist results to Postgres
@@ -60,7 +60,7 @@ Run with:
 python score.py --min-history-days 3
 ```
 
-`MODEL_ARTIFACT_PATH` supports either a local filesystem path or an `s3://bucket/key.joblib` URI. S3 access uses the standard AWS credential chain from the runtime environment.
+`MODEL_ARTIFACT_PATH` supports either a local filesystem path or an `s3://bucket/key.joblib` URI. In production, training pushes the latest model artifact to S3 and scoring reads that same artifact back from S3. S3 access uses the standard AWS credential chain from the runtime environment.
 
 Model artifact location is env-only for both training and scoring:
 
