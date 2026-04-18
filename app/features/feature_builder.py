@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import text
+import logging
 
 from app.db import engine
 from app.features.aggregation import (
@@ -17,6 +18,8 @@ from app.features.utils import (
     build_date_range as _date_range,
     coerce_date as _coerce_date,
 )
+
+logger = logging.getLogger(__name__)
 
 
 ##### Core Feature Engineering Layer ######
@@ -101,14 +104,38 @@ def _build_feature_frame(
 
     # Pull extra history before the target range so rolling stats have context.
     history_start_date = start_date - timedelta(days=lookback_days)
+    logger.info(
+        "Building features for %s to %s with lookback_days=%s min_history_days=%s (history window starts %s)",
+        start_date,
+        end_date,
+        lookback_days,
+        min_history_days,
+        history_start_date,
+    )
     crime_records = _fetch_crime_records(history_start_date, end_date)
     if crime_records.empty:
+        logger.warning(
+            "No crime records found between %s and %s; feature frame will be empty",
+            history_start_date,
+            end_date,
+        )
         return pd.DataFrame()
+    logger.info(
+        "Fetched %s crime records across %s grids and %s event dates",
+        len(crime_records),
+        crime_records["grid_id"].nunique(dropna=True),
+        pd.to_datetime(crime_records["event_date"]).nunique(dropna=True),
+    )
 
     # Collapse raw crime rows into one dense row per grid/day.
     daily_frame, category_columns = _prepare_daily_frame(
         crime_records=crime_records,
         full_date_range=_date_range(history_start_date, end_date),
+    )
+    logger.info(
+        "Prepared dense daily frame with %s rows across %s grids",
+        len(daily_frame),
+        daily_frame["grid_id"].nunique(dropna=True),
     )
 
     # Transform daily counts into model-ready numeric features.
@@ -118,13 +145,44 @@ def _build_feature_frame(
         lookback_days=lookback_days,
         include_explanation_features=include_explanation_features,
     )
+    logger.info(
+        "Computed feature candidates: %s rows before target-date/history filtering",
+        len(feature_frame),
+    )
 
-    # Keep only the requested slice once the rolling features are available.
-    feature_frame = feature_frame[
+    target_slice = feature_frame[
         (feature_frame["date"] >= pd.Timestamp(start_date))
         & (feature_frame["date"] <= pd.Timestamp(end_date))
-        & (feature_frame["history_days"] >= min_history_days)
     ].copy()
+    if target_slice.empty:
+        logger.warning(
+            "No feature rows matched requested date slice %s to %s before history filtering",
+            start_date,
+            end_date,
+        )
+    else:
+        eligible_rows = int((target_slice["history_days"] >= min_history_days).sum())
+        logger.info(
+            "Target-date feature candidates: %s rows, %s eligible after history filter, history_days range=[%s, %s]",
+            len(target_slice),
+            eligible_rows,
+            int(target_slice["history_days"].min()),
+            int(target_slice["history_days"].max()),
+        )
+
+    # Keep only the requested slice once the rolling features are available.
+    feature_frame = target_slice[
+        target_slice["history_days"] >= min_history_days
+    ].copy()
+    if feature_frame.empty:
+        logger.warning(
+            "Feature frame is empty after applying history_days >= %s for %s to %s",
+            min_history_days,
+            start_date,
+            end_date,
+        )
+    else:
+        logger.info("Returning %s feature rows after filtering", len(feature_frame))
 
     # Return plain ``date`` objects for downstream compatibility.
     feature_frame["date"] = feature_frame["date"].dt.date
