@@ -19,6 +19,7 @@ from app.features.constants import (
     DEFAULT_MIN_HISTORY_DAYS,
 )
 from app.model.storage import ArtifactLocation, resolve_artifact_location
+from app.time_utils import local_today
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def resolve_training_end_date(
     Resolve the training end date, defaulting to today's local date when omitted.
     """
     if end_date is None:
-        return datetime.now().date().isoformat()
+        return local_today().isoformat()
     if isinstance(end_date, datetime):
         return end_date.date().isoformat()
     if isinstance(end_date, date):

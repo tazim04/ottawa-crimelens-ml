@@ -13,6 +13,7 @@ from app.features.feature_builder import build_daily_features
 from app.features.constants import DEFAULT_LOOKBACK_DAYS
 from app.model.model import load_model_artifact, score_feature_frame
 from app.model.storage import ArtifactLocation, resolve_artifact_location
+from app.time_utils import local_today
 
 from app.model.pipelines.triage.labelling import (
     add_triage_explanations,
@@ -92,7 +93,7 @@ def resolve_scoring_date(target_date: str | date | datetime | None = None) -> da
     Resolve the scoring date, defaulting to today's local date when omitted.
     """
     if target_date is None:
-        return datetime.now().date()
+        return local_today()
     if isinstance(target_date, datetime):
         return target_date.date()
     if isinstance(target_date, date):

@@ -16,6 +16,15 @@ def test_resolve_scoring_date_normalizes_supported_inputs() -> None:
     )
 
 
+def test_resolve_scoring_date_defaults_to_configured_local_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that omitted scoring dates resolve through the application timezone helper."""
+    monkeypatch.setattr(scoring, "local_today", lambda: date(2026, 3, 29))
+
+    assert scoring.resolve_scoring_date() == date(2026, 3, 29)
+
+
 def test_resolve_model_artifact_path_uses_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

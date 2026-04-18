@@ -54,13 +54,7 @@ def test_resolve_training_end_date_defaults_to_today(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that omitted training end dates fall back to today's local date."""
-
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None) -> datetime:
-            return cls(2026, 3, 29, 8, 30)
-
-    monkeypatch.setattr(training, "datetime", FixedDateTime)
+    monkeypatch.setattr(training, "local_today", lambda: date(2026, 3, 29))
 
     assert training.resolve_training_end_date() == "2026-03-29"
 
@@ -126,11 +120,6 @@ def test_run_training_pipeline_defaults_end_date_to_today(
     """Test that training uses today's date when the end date is omitted."""
     monkeypatch.delenv("MODEL_ARTIFACT_PATH", raising=False)
 
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None) -> datetime:
-            return cls(2026, 3, 29, 8, 30)
-
     training_frame = pd.DataFrame(
         [
             {"grid_id": "g1", "date": "2026-01-01", "total_crimes": 3.0},
@@ -139,7 +128,7 @@ def test_run_training_pipeline_defaults_end_date_to_today(
     )
     captured_dataset_kwargs: dict[str, object] = {}
 
-    monkeypatch.setattr(training, "datetime", FixedDateTime)
+    monkeypatch.setattr(training, "local_today", lambda: date(2026, 3, 29))
     monkeypatch.setattr(
         training,
         "build_training_dataset",

@@ -61,6 +61,8 @@ Run with:
 python score.py --min-history-days 3
 ```
 
+When `--target-date` or `--end-date` is omitted, the service resolves "today" using `APP_TIMEZONE`. The default is `America/Toronto`, which keeps AWS runs aligned with Ottawa local dates even if the container itself is running in UTC.
+
 `MODEL_ARTIFACT_PATH` supports either a local filesystem path or an `s3://bucket/key.joblib` URI. In production, training pushes the latest model artifact to S3 and scoring reads that same artifact back from S3. S3 access uses the standard AWS credential chain from the runtime environment.
 
 Model artifact location is env-only for both training and scoring:

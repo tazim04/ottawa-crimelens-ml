@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Toronto")
+
 DB_HOST = os.getenv("NEON_DB_URL")
 DB_NAME = os.getenv("NEON_DB_NAME", "neondb")
 DB_USER = os.getenv("NEON_DB_USER", "neondb_owner")
